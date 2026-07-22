@@ -20,12 +20,12 @@ export function ProductRail({
   layout = "grid",
 }: ProductRailProps) {
   return (
-    <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
+    <section className="mx-auto max-w-7xl px-4 sm:px-6">
       <SectionHeader
         eyebrow={eyebrow}
         title={title}
         viewAllHref={viewAllHref}
-        className="mb-8"
+        className="mb-6 sm:mb-8"
       />
       {layout === "grid" ? (
         <ul className="grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 lg:grid-cols-4">

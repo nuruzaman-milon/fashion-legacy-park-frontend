@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 export function BrandBand() {
   return (
     <section className="border-y bg-accent/50">
-      <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6">
+      <div className="mx-auto max-w-3xl px-4 py-8 text-center sm:px-6 sm:py-12">
         <p className="mb-3 text-xs font-semibold tracking-[0.18em] text-brand uppercase">
           The Fashion Legacy promise
         </p>

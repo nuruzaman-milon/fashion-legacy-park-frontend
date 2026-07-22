@@ -11,11 +11,11 @@ export function CategoryCarousel({
   categories: CategorySummary[];
 }) {
   return (
-    <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
+    <section className="mx-auto max-w-7xl px-4 sm:px-6">
       <SectionHeader
         eyebrow="Browse the store"
         title="Shop by category"
-        className="mb-8"
+        className="mb-6 sm:mb-8"
       />
       <Carousel itemClassName="group relative w-40 sm:w-48 lg:w-52">
         {categories.map((category) => (

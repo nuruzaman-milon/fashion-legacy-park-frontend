@@ -24,7 +24,7 @@ export function Hero({ banner }: { banner: HomeBanner }) {
           "radial-gradient(70rem 35rem at 82% -8%, oklch(0.45 0.09 60 / 0.35), transparent 62%), linear-gradient(115deg, oklch(0.21 0.022 45), oklch(0.155 0.018 35))",
       }}
     >
-      <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1.05fr_1fr] md:py-20 lg:gap-16">
+      <div className="mx-auto grid max-w-7xl items-center gap-8 px-4 py-8 sm:px-6 sm:py-12 md:grid-cols-[1.05fr_1fr] md:py-14 lg:gap-16">
         <div>
           {banner.eyebrow && (
             <p className="mb-4 inline-block rounded-full border border-[oklch(0.75_0.09_70_/_0.35)] bg-white/5 px-3.5 py-1 text-xs font-semibold tracking-[0.16em] text-[oklch(0.82_0.09_75)] uppercase">

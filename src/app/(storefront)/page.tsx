@@ -10,7 +10,7 @@ export default async function HomePage() {
   const home = await getHomeData();
 
   return (
-    <>
+    <div className="space-y-8 pb-8 sm:space-y-12 sm:pb-12">
       <Hero banner={home.banner} />
       <UspStrip />
       <CategoryCarousel categories={home.categories} />
@@ -20,6 +20,7 @@ export default async function HomePage() {
         title="New arrivals"
         viewAllHref="/products?sort=newest"
         products={home.newArrivals}
+        layout="scroll"
       />
       <BrandBand />
       <ProductRail
@@ -29,6 +30,6 @@ export default async function HomePage() {
         products={home.bestSellers}
         layout="scroll"
       />
-    </>
+    </div>
   );
 }
