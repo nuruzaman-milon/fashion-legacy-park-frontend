@@ -42,6 +42,60 @@ export interface ProductListItem {
   flashSale?: FlashSaleInfo | null;
 }
 
+/** Mirrors `Option` / `OptionValue` — the global option library. */
+export interface ProductOptionValue {
+  id: string;
+  label: string;
+  hexColor: string | null;
+  sortOrder: number;
+}
+
+export interface ProductOptionGroup {
+  id: string;
+  name: string;
+  displayType: "SWATCH" | "PILL";
+  values: ProductOptionValue[];
+}
+
+/** Mirrors `ProductVariant` + its `ProductVariantOption` rows. */
+export interface ProductVariantInfo {
+  id: string;
+  sku: string;
+  price: number;
+  comparePrice: number | null;
+  stock: number;
+  optionValueIds: string[];
+}
+
+/** Mirrors `ProductImage` — `optionValueId` scopes an image to a colour. */
+export interface ProductImageInfo {
+  src: string;
+  alt: string;
+  optionValueId: string | null;
+}
+
+export interface ProductReview {
+  id: string;
+  author: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+  isVerified: boolean;
+  helpfulCount: number;
+  adminReply: string | null;
+}
+
+export interface ProductDetail extends ProductListItem {
+  description: string;
+  /** `Product.specifications` Json — display-only per FEATURE.md. */
+  specifications: Record<string, string>;
+  options: ProductOptionGroup[];
+  variants: ProductVariantInfo[];
+  images: ProductImageInfo[];
+  reviews: ProductReview[];
+  lowStockThreshold: number;
+}
+
 export interface HomeBanner {
   id: string;
   eyebrow: string | null;
