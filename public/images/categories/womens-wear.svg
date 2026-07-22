@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 900">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="36%" r="80%">
+      <stop offset="0%" stop-color="#31241a"/>
+      <stop offset="55%" stop-color="#1f1711"/>
+      <stop offset="100%" stop-color="#120d09"/>
+    </radialGradient>
+    <radialGradient id="vig" cx="50%" cy="42%" r="75%">
+      <stop offset="62%" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.5"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#eed491"/>
+      <stop offset="45%" stop-color="#cfa552"/>
+      <stop offset="100%" stop-color="#9a7230"/>
+    </linearGradient>
+    <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8a5527"/>
+      <stop offset="100%" stop-color="#5d3416"/>
+    </linearGradient>
+    <linearGradient id="cloth" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0%" stop-color="#7e2731"/>
+      <stop offset="50%" stop-color="#5f1a23"/>
+      <stop offset="100%" stop-color="#431117"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="720" height="900" fill="url(#bg)"/>
+  <ellipse cx="360" cy="766" rx="252" ry="34" fill="#000000" opacity="0.32"/>
+
+  <path d="M360 150 c0 -18 0 -26 14 -32 c16 -7 16 -30 -2 -36 c-14 -5 -26 3 -26 16" fill="none" stroke="#c9ced6" stroke-width="8" stroke-linecap="round"/>
+  <path d="M360 148 L170 216 Q158 221 165 231 L555 231 Q562 221 550 216 Z" fill="url(#wood)"/>
+  <g transform="translate(360 222) scale(0.28)" opacity="0.9">
+    <path d="M-30 12 L-30 -4 L-14 6 L0 -16 L14 6 L30 -4 L30 12 Z" fill="url(#gold)"/>
+  </g>
+
+  <path d="M276 254 C228 322 198 442 189 554 C187 578 200 587 219 580 L253 566 C241 462 253 350 283 264 Z" fill="#49141b"/>
+  <path d="M444 254 C492 322 522 442 531 554 C533 578 520 587 501 580 L467 566 C479 462 467 350 437 264 Z" fill="#49141b"/>
+
+  <path d="M272 246 C310 228 410 228 448 246 C470 342 506 520 522 658 C428 702 292 702 198 658 C214 520 250 342 272 246 Z" fill="url(#cloth)"/>
+  <path d="M286 258 C274 420 266 556 252 644 L298 666 C306 520 312 362 322 252 Z" fill="#ffffff" opacity="0.045"/>
+  <path d="M420 260 C424 400 428 540 424 656" stroke="#000000" opacity="0.1" stroke-width="3" fill="none"/>
+  <path d="M308 302 C304 420 300 540 304 648" stroke="#000000" opacity="0.08" stroke-width="3" fill="none"/>
+
+  <path d="M316 242 C334 292 386 292 404 242" fill="#241a12"/>
+  <path d="M316 242 C334 292 386 292 404 242" fill="none" stroke="url(#gold)" stroke-width="7" stroke-linecap="round"/>
+
+  <path d="M204 662 C296 702 424 702 516 662" fill="none" stroke="url(#gold)" stroke-width="8" opacity="0.85" stroke-linecap="round"/>
+
+  <g transform="translate(360 372) scale(0.85)">
+    <path d="M-30 12 L-30 -4 L-14 6 L0 -16 L14 6 L30 -4 L30 12 Z" fill="url(#gold)"/>
+    <rect x="-30" y="15" width="60" height="6" rx="3" fill="url(#gold)"/>
+    <circle cx="-30" cy="-9" r="4" fill="url(#gold)"/>
+    <circle cx="0" cy="-21" r="4" fill="url(#gold)"/>
+    <circle cx="30" cy="-9" r="4" fill="url(#gold)"/>
+  </g>
+
+  <rect width="720" height="900" fill="url(#vig)"/>
+
+  <g transform="translate(360 798) scale(0.55)" opacity="0.95">
+    <path d="M-30 12 L-30 -4 L-14 6 L0 -16 L14 6 L30 -4 L30 12 Z" fill="url(#gold)"/>
+    <rect x="-30" y="15" width="60" height="6" rx="3" fill="url(#gold)"/>
+    <circle cx="-30" cy="-9" r="4" fill="url(#gold)"/>
+    <circle cx="0" cy="-21" r="4" fill="url(#gold)"/>
+    <circle cx="30" cy="-9" r="4" fill="url(#gold)"/>
+  </g>
+  <text x="360" y="852" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="30" letter-spacing="9" fill="url(#gold)" opacity="0.95">FASHION LEGACY</text>
+</svg>

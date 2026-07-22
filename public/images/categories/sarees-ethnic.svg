@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 900">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="36%" r="80%">
+      <stop offset="0%" stop-color="#31241a"/>
+      <stop offset="55%" stop-color="#1f1711"/>
+      <stop offset="100%" stop-color="#120d09"/>
+    </radialGradient>
+    <radialGradient id="vig" cx="50%" cy="42%" r="75%">
+      <stop offset="62%" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.5"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#eed491"/>
+      <stop offset="45%" stop-color="#cfa552"/>
+      <stop offset="100%" stop-color="#9a7230"/>
+    </linearGradient>
+    <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8a5527"/>
+      <stop offset="100%" stop-color="#5d3416"/>
+    </linearGradient>
+    <linearGradient id="plum" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0%" stop-color="#5d2244"/>
+      <stop offset="50%" stop-color="#43152f"/>
+      <stop offset="100%" stop-color="#2c0d1f"/>
+    </linearGradient>
+    <linearGradient id="plumLight" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#6b2a50"/>
+      <stop offset="100%" stop-color="#4a1834"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="720" height="900" fill="url(#bg)"/>
+  <ellipse cx="360" cy="766" rx="248" ry="34" fill="#000000" opacity="0.32"/>
+
+  <path d="M360 150 c0 -18 0 -26 14 -32 c16 -7 16 -30 -2 -36 c-14 -5 -26 3 -26 16" fill="none" stroke="#c9ced6" stroke-width="8" stroke-linecap="round"/>
+  <path d="M360 148 L170 216 Q158 221 165 231 L555 231 Q562 221 550 216 Z" fill="url(#wood)"/>
+  <g transform="translate(360 222) scale(0.28)" opacity="0.9">
+    <path d="M-30 12 L-30 -4 L-14 6 L0 -16 L14 6 L30 -4 L30 12 Z" fill="url(#gold)"/>
+  </g>
+
+  <path d="M206 238 L514 238 C524 440 528 590 520 664 C440 700 280 700 200 664 C192 590 196 440 206 238 Z" fill="url(#plum)"/>
+  <path d="M206 238 C196 440 192 590 200 664" fill="none" stroke="url(#gold)" stroke-width="10" opacity="0.9"/>
+  <path d="M514 238 C524 440 528 590 520 664" fill="none" stroke="url(#gold)" stroke-width="10" opacity="0.9"/>
+  <path d="M250 250 C244 420 242 560 246 650" stroke="#ffffff" opacity="0.05" stroke-width="16" fill="none"/>
+  <path d="M470 250 C476 420 478 560 474 650" stroke="#000000" opacity="0.18" stroke-width="18" fill="none"/>
+
+  <path d="M296 238 L424 238 L432 676 L288 676 Z" fill="url(#plumLight)"/>
+  <path d="M314 238 L318 676" stroke="#2c0d1f" stroke-width="5" opacity="0.7"/>
+  <path d="M338 238 L340 676" stroke="#ffffff" stroke-width="3" opacity="0.08"/>
+  <path d="M360 238 L362 676" stroke="#2c0d1f" stroke-width="5" opacity="0.7"/>
+  <path d="M384 238 L384 676" stroke="#ffffff" stroke-width="3" opacity="0.08"/>
+  <path d="M406 238 L404 676" stroke="#2c0d1f" stroke-width="5" opacity="0.7"/>
+
+  <path d="M289 556 L431 556 L432 676 L288 676 Z" fill="url(#gold)"/>
+  <path d="M289 570 L431 570" stroke="#7a5a22" stroke-width="3" opacity="0.8"/>
+  <path d="M288 660 L432 660" stroke="#7a5a22" stroke-width="3" opacity="0.8"/>
+  <circle cx="316" cy="614" r="4.5" fill="#5e1a22"/>
+  <circle cx="404" cy="614" r="4.5" fill="#5e1a22"/>
+  <g transform="translate(360 614) scale(0.5)">
+    <path d="M-30 12 L-30 -4 L-14 6 L0 -16 L14 6 L30 -4 L30 12 Z" fill="#5e1a22"/>
+  </g>
+
+  <rect width="720" height="900" fill="url(#vig)"/>
+
+  <g transform="translate(360 798) scale(0.55)" opacity="0.95">
+    <path d="M-30 12 L-30 -4 L-14 6 L0 -16 L14 6 L30 -4 L30 12 Z" fill="url(#gold)"/>
+    <rect x="-30" y="15" width="60" height="6" rx="3" fill="url(#gold)"/>
+    <circle cx="-30" cy="-9" r="4" fill="url(#gold)"/>
+    <circle cx="0" cy="-21" r="4" fill="url(#gold)"/>
+    <circle cx="30" cy="-9" r="4" fill="url(#gold)"/>
+  </g>
+  <text x="360" y="852" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="30" letter-spacing="9" fill="url(#gold)" opacity="0.95">FASHION LEGACY</text>
+</svg>
