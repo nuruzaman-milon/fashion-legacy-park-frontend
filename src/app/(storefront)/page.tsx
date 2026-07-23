@@ -12,9 +12,9 @@ export default async function HomePage() {
   return (
     <div className="space-y-8 pb-8 sm:space-y-12 sm:pb-12">
       <Hero banner={home.banner} />
-      <UspStrip />
       <CategoryCarousel categories={home.categories} />
       {home.flashSale && <FlashSaleSection sale={home.flashSale} />}
+      <UspStrip />
       <ProductRail
         eyebrow="Just landed"
         title="New arrivals"

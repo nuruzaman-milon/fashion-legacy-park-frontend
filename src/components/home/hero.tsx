@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRightIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { HeroStats } from "@/components/home/hero-stats";
 import {
   HeroShowcase,
   type ShowcaseSlide,
@@ -24,7 +25,7 @@ export function Hero({ banner }: { banner: HomeBanner }) {
           "radial-gradient(70rem 35rem at 82% -8%, oklch(0.45 0.09 60 / 0.35), transparent 62%), linear-gradient(115deg, oklch(0.21 0.022 45), oklch(0.155 0.018 35))",
       }}
     >
-      <div className="mx-auto grid max-w-7xl items-center gap-8 px-4 py-8 sm:px-6 sm:py-12 md:grid-cols-[1.05fr_1fr] md:py-14 lg:gap-16">
+      <div className="mx-auto grid max-w-7xl items-center gap-8 px-4 pt-8 sm:px-6 sm:pt-12 md:grid-cols-[1.05fr_1fr] md:pt-14 pb-6 lg:gap-16">
         <div>
           {banner.eyebrow && (
             <p className="mb-4 inline-block rounded-full border border-[oklch(0.75_0.09_70_/_0.35)] bg-white/5 px-3.5 py-1 text-xs font-semibold tracking-[0.16em] text-[oklch(0.82_0.09_75)] uppercase">
@@ -57,19 +58,6 @@ export function Hero({ banner }: { banner: HomeBanner }) {
               Explore the sale
             </Button>
           </div>
-          <dl className="mt-10 flex gap-8 border-t border-white/15 pt-6">
-            {[
-              ["500+", "styles in stock"],
-              ["64", "districts served"],
-              ["4.7★", "average rating"],
-            ].map(([value, label]) => (
-              <div key={label}>
-                <dt className="sr-only">{label}</dt>
-                <dd className="font-heading text-2xl font-medium">{value}</dd>
-                <dd className="text-xs text-background/60">{label}</dd>
-              </div>
-            ))}
-          </dl>
         </div>
 
         {slides.length > 0 && (
@@ -78,6 +66,10 @@ export function Hero({ banner }: { banner: HomeBanner }) {
             className="mx-auto w-full max-w-md lg:max-w-lg"
           />
         )}
+      </div>
+
+      <div className="mx-auto max-w-7xl px-4 pb-8 sm:px-6 sm:pb-12">
+        <HeroStats />
       </div>
     </section>
   );
