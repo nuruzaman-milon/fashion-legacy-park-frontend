@@ -68,7 +68,7 @@ export function Hero({ banner }: { banner: HomeBanner }) {
         )}
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 pb-8 sm:px-6 sm:pb-12">
+      <div className="mx-auto max-w-7xl px-4 pb-8 sm:px-6 sm:pb-12 pt-2">
         <HeroStats />
       </div>
     </section>

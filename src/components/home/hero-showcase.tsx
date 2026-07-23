@@ -2,44 +2,54 @@
 
 import * as React from "react";
 import Image from "next/image";
+import {
+  AnimatePresence,
+  motion,
+  useInView,
+  useReducedMotion,
+  type Variants,
+} from "motion/react";
 
 import { cn } from "@/lib/utils";
 
 /** One tile changes per beat, so each image stays visible for two beats. */
 const BEAT_MS = 4500;
-const GOLD = "oklch(0.8 0.1 70)";
+const IMG_SIZES = "(min-width: 768px) 22vw, 45vw";
 
-/**
- * Shared classes for the enter/exit movement: a long, gentle ease-in-out so
- * slides drift rather than whip.
- */
-const SLIDE_EASE =
-  "duration-[1400ms] ease-[cubic-bezier(0.45,0,0.2,1)] motion-reduce:transition-none";
-
-const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
-
-function usePrefersReducedMotion() {
-  return React.useSyncExternalStore(
-    (onChange) => {
-      const mq = window.matchMedia(REDUCED_MOTION_QUERY);
-      mq.addEventListener("change", onChange);
-      return () => mq.removeEventListener("change", onChange);
-    },
-    () => window.matchMedia(REDUCED_MOTION_QUERY).matches,
-    () => false
-  );
-}
+/** Long, gentle push so slides drift rather than whip. */
+const PUSH_EASE = [0.45, 0, 0.2, 1] as const;
 
 export interface ShowcaseSlide {
   src: string;
   alt: string;
 }
 
+/** Stylized gold crown mark, echoing the Fashion Legacy logo crown. */
+function CrownMark({ className }: { className?: string }) {
+  const id = React.useId();
+  return (
+    <svg viewBox="0 0 32 26" aria-hidden className={className}>
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="oklch(0.9 0.08 88)" />
+          <stop offset="0.55" stopColor="oklch(0.78 0.11 78)" />
+          <stop offset="1" stopColor="oklch(0.6 0.11 62)" />
+        </linearGradient>
+      </defs>
+      <g fill={`url(#${id})`}>
+        <circle cx="6" cy="7.6" r="2" />
+        <circle cx="16" cy="3.4" r="2.2" />
+        <circle cx="26" cy="7.6" r="2" />
+        <path d="M4.2 20.2 6 10.6l5.6 4.4L16 6.6l4.4 8.4 5.6-4.4 1.8 9.6Z" />
+        <rect x="4.6" y="21.6" width="22.8" height="3" rx="1.3" />
+      </g>
+    </svg>
+  );
+}
+
 interface RotationState {
   /** Slide index shown in [left, right] tile. */
   shown: [number, number];
-  /** What each tile showed before its last swap — drives the exit animation. */
-  prev: [number, number];
   /** Which tile swaps on the next beat. */
   turn: 0 | 1;
   /** Next slide index to inject. */
@@ -48,11 +58,12 @@ interface RotationState {
 
 /**
  * Editorial offset collage (left tile lower, right tile higher) that rotates
- * through any number of slides, one tile at a time. Swaps are a directional
- * push: the incoming image slides in from the right over the outgoing one,
- * which drifts left and dims — while its slow Ken Burns zoom keeps running so
- * nothing snaps mid-exit. Pauses on hover; auto-play is skipped under
- * prefers-reduced-motion (dots navigate manually).
+ * through any number of slides, one tile at a time. Animations run on
+ * Motion's compositor-friendly transform/opacity pipeline: slides push in
+ * from the right while the outgoing one drifts left, a slow Ken Burns zoom
+ * runs for each slide's lifetime, and only the visible slide (plus the
+ * upcoming one, preloaded invisibly) stays mounted. Auto-play pauses on
+ * hover, off-screen, and under prefers-reduced-motion.
  */
 export function HeroShowcase({
   slides,
@@ -62,147 +73,183 @@ export function HeroShowcase({
   className?: string;
 }) {
   const count = slides.length;
-  const initialShown: [number, number] = [0, count > 1 ? 1 : 0];
-  const [{ shown, prev, turn }, setState] = React.useState<RotationState>({
-    shown: initialShown,
-    prev: initialShown,
+  const [{ shown, turn, next }, setState] = React.useState<RotationState>({
+    shown: [0, count > 1 ? 1 : 0],
     turn: 0,
     next: count > 2 ? 2 : 0,
   });
   const [paused, setPaused] = React.useState(false);
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const autoPlay = count > 1 && !prefersReducedMotion;
+  const reduceMotion = useReducedMotion();
+  const stageRef = React.useRef<HTMLDivElement>(null);
+  const inView = useInView(stageRef, { amount: 0.3 });
+  const autoPlay = count > 1 && !reduceMotion && inView && !paused;
 
   React.useEffect(() => {
-    if (!autoPlay || paused) return;
+    if (!autoPlay) return;
     const id = setTimeout(() => {
       setState((s) => {
         if (count === 2) {
-          return { ...s, prev: s.shown, shown: [s.shown[1], s.shown[0]] };
+          return { ...s, shown: [s.shown[1], s.shown[0]] };
         }
         const shownNext: [number, number] = [...s.shown];
         shownNext[s.turn] = s.next;
         return {
           shown: shownNext,
-          prev: s.shown,
           turn: s.turn === 0 ? 1 : 0,
           next: (s.next + 1) % count,
         };
       });
     }, BEAT_MS);
     return () => clearTimeout(id);
-  }, [shown, turn, autoPlay, paused, count]);
+  }, [shown, autoPlay, count]);
 
   if (count === 0) return null;
 
-  const jumpTo = (i: number) => {
-    setState((s) => {
-      if (s.shown.includes(i)) return s;
-      const shownNext: [number, number] = [...s.shown];
-      shownNext[s.turn] = i;
-      return {
-        shown: shownNext,
-        prev: s.shown,
-        turn: s.turn === 0 ? 1 : 0,
-        next: (i + 1) % count,
-      };
-    });
-  };
-
   const tiles = count === 1 ? [0] : [0, 1];
+
+  const collageVariants: Variants = {
+    hidden: {},
+    show: { transition: { staggerChildren: 0.16, delayChildren: 0.1 } },
+  };
+  const tileVariants: Variants = {
+    hidden: { opacity: 0, y: reduceMotion ? 0 : 44 },
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.9, ease: [0.22, 1, 0.36, 1] },
+    },
+  };
+  const pillVariants: Variants = {
+    hidden: {
+      opacity: 0,
+      y: reduceMotion ? 0 : 14,
+      scale: reduceMotion ? 1 : 0.9,
+    },
+    show: {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      transition: { type: "spring", stiffness: 260, damping: 20, delay: 0.6 },
+    },
+  };
 
   return (
     <div className={className}>
-      <div
+      <motion.div
+        ref={stageRef}
         className="relative"
+        initial="hidden"
+        whileInView="show"
+        viewport={{ once: true, amount: 0.3 }}
+        variants={collageVariants}
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
       >
         <div
+          aria-hidden
+          className="pointer-events-none absolute -inset-12 -z-10"
+          style={{
+            background:
+              "radial-gradient(55% 50% at 50% 42%, oklch(0.52 0.1 60 / 0.28), transparent 72%)",
+          }}
+        />
+
+        <div
           className={cn(
             "grid gap-4",
-            count === 1 ? "grid-cols-1" : "grid-cols-2"
+            count === 1 ? "grid-cols-1" : "grid-cols-2",
           )}
         >
           {tiles.map((tile) => {
             const visible = shown[tile];
-            const leaving = prev[tile] !== visible ? prev[tile] : null;
+            const slide = slides[visible];
             return (
-              <div
+              <motion.div
                 key={tile}
-                className={cn(
-                  "relative isolate aspect-3/4 overflow-hidden rounded-2xl shadow-2xl ring-1 ring-white/10",
-                  tile === 0 && count > 1 && "translate-y-8"
-                )}
+                variants={tileVariants}
+                whileHover={reduceMotion ? undefined : { y: -4 }}
+                className={cn(tile === 0 && count > 1 && "translate-y-8")}
               >
-                {slides.map((slide, i) => {
-                  const isVisible = i === visible;
-                  const isLeaving = i === leaving;
-                  return (
+                <motion.div
+                  animate={
+                    reduceMotion
+                      ? undefined
+                      : { y: tile === 0 ? [0, -8, 0] : [0, 8, 0] }
+                  }
+                  transition={{
+                    duration: 6,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                  className="relative isolate aspect-3/4 overflow-hidden rounded-2xl shadow-2xl ring-1 ring-white/10"
+                >
+                  <AnimatePresence initial={false}>
+                    <motion.div
+                      key={visible}
+                      className="absolute inset-0"
+                      initial={{ x: reduceMotion ? 0 : "62%", opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      exit={{ x: reduceMotion ? 0 : "-26%", opacity: 0 }}
+                      transition={{
+                        duration: reduceMotion ? 0.35 : 1.15,
+                        ease: PUSH_EASE,
+                      }}
+                    >
+                      <motion.div
+                        className="absolute inset-0"
+                        initial={{ scale: 1 }}
+                        animate={{ scale: reduceMotion ? 1 : 1.08 }}
+                        transition={{
+                          duration: (BEAT_MS * 2) / 1000,
+                          ease: "linear",
+                        }}
+                      >
+                        <Image
+                          src={slide.src}
+                          alt={slide.alt}
+                          fill
+                          priority
+                          sizes={IMG_SIZES}
+                          className="object-cover"
+                        />
+                      </motion.div>
+                    </motion.div>
+                  </AnimatePresence>
+
+                  {/* Warm the browser cache for the incoming slide so it never
+                      pops in half-loaded mid-animation. */}
+                  {count > 2 && tile === turn && (
                     <div
-                      key={slide.src}
-                      aria-hidden={!isVisible}
-                      className={cn(
-                        "absolute inset-0",
-                        isVisible &&
-                          `z-20 translate-x-0 opacity-100 transition-[transform,opacity] ${SLIDE_EASE}`,
-                        isLeaving &&
-                          `z-10 -translate-x-1/4 opacity-0 transition-[transform,opacity] ${SLIDE_EASE}`,
-                        !isVisible &&
-                          !isLeaving &&
-                          "z-0 translate-x-[55%] opacity-0"
-                      )}
+                      aria-hidden
+                      className="pointer-events-none absolute inset-0 -z-10 opacity-0"
                     >
                       <Image
-                        src={slide.src}
-                        alt={slide.alt}
+                        src={slides[next].src}
+                        alt=""
                         fill
-                        priority={i === tile}
-                        sizes="(min-width: 768px) 22vw, 45vw"
-                        className={cn(
-                          "object-cover motion-reduce:transition-none motion-reduce:transform-none",
-                          isVisible || isLeaving
-                            ? "scale-[1.07] transition-transform duration-[7000ms] ease-linear"
-                            : "scale-100"
-                        )}
+                        sizes={IMG_SIZES}
+                        className="object-cover"
                       />
                     </div>
-                  );
-                })}
-              </div>
+                  )}
+                </motion.div>
+              </motion.div>
             );
           })}
         </div>
 
-        <div className="absolute -bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-3 rounded-xl bg-white/10 px-4 py-3 ring-1 ring-white/15 backdrop-blur">
-          <span className="flex size-2 rounded-full bg-[oklch(0.8_0.1_70)]" />
-          <p className="text-sm font-medium whitespace-nowrap">
-            Fresh winter drop · limited run
-          </p>
-        </div>
-      </div>
-
-      {count > 2 && (
-        <div className="mt-14 flex justify-center gap-2">
-          {slides.map((slide, i) => {
-            const isShown = shown.includes(i);
-            return (
-              <button
-                key={slide.src}
-                type="button"
-                onClick={() => jumpTo(i)}
-                aria-label={`Show ${slide.alt}`}
-                aria-current={isShown}
-                className={cn(
-                  "h-1.5 rounded-full transition-all duration-500",
-                  isShown ? "w-7" : "w-2 bg-white/25 hover:bg-white/50"
-                )}
-                style={isShown ? { background: GOLD } : undefined}
-              />
-            );
-          })}
-        </div>
-      )}
+        <motion.div
+          variants={pillVariants}
+          className="absolute -bottom-4 left-1/2 z-10 -translate-x-1/2"
+        >
+          <div className="flex items-center gap-2.5 rounded-xl bg-white/10 px-4 py-3 ring-1 ring-white/15 backdrop-blur">
+            <CrownMark className="h-4 w-auto shrink-0" />
+            <p className="text-sm font-medium whitespace-nowrap">
+              Fresh winter drop · limited run
+            </p>
+          </div>
+        </motion.div>
+      </motion.div>
     </div>
   );
 }
