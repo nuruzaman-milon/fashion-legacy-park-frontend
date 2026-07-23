@@ -43,7 +43,7 @@ export function Hero({ banner }: { banner: HomeBanner }) {
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Button
               size="lg"
-              className="h-11 bg-background px-6 text-base text-foreground hover:bg-background/85"
+              className="h-11 bg-[linear-gradient(160deg,oklch(0.85_0.07_84),oklch(0.74_0.1_70)_55%,oklch(0.65_0.1_62))] px-6 text-base font-semibold text-[oklch(0.24_0.03_50)] shadow-[0_5px_14px_-8px_oklch(0.6_0.09_65/0.3)] transition-[filter] hover:brightness-105"
               render={<Link href={banner.href} />}
             >
               {banner.ctaLabel}

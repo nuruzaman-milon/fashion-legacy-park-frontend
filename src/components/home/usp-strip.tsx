@@ -69,7 +69,11 @@ export function UspStrip() {
   const prev = (index - 1 + USPS.length) % USPS.length;
 
   return (
-    <section aria-label="Why shop with us" className="border-y bg-card">
+    <section
+      aria-label="Why shop with us"
+      className="border-t border-[oklch(0.86_0.05_80)]"
+      style={{ background: "#F6F1EA" }}
+    >
       <div className="relative h-18 overflow-hidden sm:hidden">
         {USPS.map((usp, i) => (
           <div

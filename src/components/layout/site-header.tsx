@@ -8,6 +8,9 @@ import { MobileNav } from "@/components/layout/mobile-nav";
 import { siteConfig } from "@/config/site";
 import { cn } from "@/lib/utils";
 
+const headerIconHover =
+  "hover:bg-[oklch(0.88_0.06_80/0.5)] hover:text-brand";
+
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-50">
@@ -16,7 +19,13 @@ export function SiteHeader() {
         ৳2,000
       </p>
 
-      <div className="border-b bg-background/90 backdrop-blur supports-backdrop-filter:bg-background/75">
+      <div
+        className="border-b border-[oklch(0.88_0.04_82/0.8)] backdrop-blur"
+        style={{
+          background:
+            "radial-gradient(52rem 7rem at 80% 0%, oklch(0.88 0.075 80 / 0.4), transparent 68%), linear-gradient(115deg, oklch(0.96 0.03 86 / 0.94), oklch(0.975 0.014 84 / 0.9) 55%, oklch(0.955 0.035 82 / 0.94))",
+        }}
+      >
         <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-4 sm:px-6 md:h-20">
           <MobileNav />
 
@@ -44,13 +53,13 @@ export function SiteHeader() {
                 type="search"
                 name="q"
                 placeholder="Search for kurti, panjabi, saree…"
-                className="w-64 rounded-full border-transparent bg-muted pl-9"
+                className="w-64 rounded-full border-[oklch(0.85_0.05_80)] bg-muted pl-9"
               />
             </form>
             <Button
               variant="ghost"
               size="icon"
-              className="lg:hidden"
+              className={cn("lg:hidden", headerIconHover)}
               aria-label="Search"
             >
               <SearchIcon className="size-5" />
@@ -58,6 +67,7 @@ export function SiteHeader() {
             <Button
               variant="ghost"
               size="icon"
+              className={headerIconHover}
               aria-label="Wishlist"
               render={<Link href="/wishlist" />}
             >
@@ -66,6 +76,7 @@ export function SiteHeader() {
             <Button
               variant="ghost"
               size="icon"
+              className={headerIconHover}
               aria-label="Cart"
               render={<Link href="/cart" />}
             >
@@ -74,6 +85,7 @@ export function SiteHeader() {
             <Button
               variant="ghost"
               size="icon"
+              className={headerIconHover}
               aria-label="Account"
               render={<Link href="/login" />}
             >
