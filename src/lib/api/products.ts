@@ -1,4 +1,5 @@
 import type {
+  CategorySummary,
   ProductDetail,
   ProductImageInfo,
   ProductListItem,
@@ -6,7 +7,7 @@ import type {
   ProductVariantInfo,
 } from "@/types/catalog";
 
-import { mockFlashSaleItems, mockProducts } from "./mock/home-data";
+import { mockCategories, mockFlashSaleItems, mockProducts } from "./mock/home-data";
 import {
   APPAREL_SIZES,
   SHOE_SIZES,
@@ -40,6 +41,85 @@ function hashOf(text: string): number {
 
 export async function getAllProductSlugs(): Promise<string[]> {
   return mockProducts.map((p) => p.slug);
+}
+
+export async function getCategories(): Promise<CategorySummary[]> {
+  return mockCategories;
+}
+
+export type ProductSort =
+  | "featured"
+  | "newest"
+  | "best-selling"
+  | "price-asc"
+  | "price-desc"
+  | "rating";
+
+export interface ProductListQuery {
+  category?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  /** Minimum average rating. */
+  rating?: number;
+  /** Only products with an active discount (compare price or flash sale). */
+  onSale?: boolean;
+  sort?: ProductSort;
+}
+
+/** Price a buyer actually pays right now — flash price when one is active. */
+function effectivePrice(p: ProductListItem): number {
+  return p.flashSale ? p.flashSale.flashPrice : p.minPrice;
+}
+
+export async function getProducts(
+  query: ProductListQuery = {}
+): Promise<{ products: ProductListItem[]; total: number }> {
+  let products = mockProducts.map(withDerived);
+
+  if (query.category) {
+    products = products.filter((p) => p.category.slug === query.category);
+  }
+  if (query.minPrice !== undefined) {
+    products = products.filter((p) => effectivePrice(p) >= query.minPrice!);
+  }
+  if (query.maxPrice !== undefined) {
+    products = products.filter((p) => effectivePrice(p) <= query.maxPrice!);
+  }
+  if (query.rating !== undefined) {
+    products = products.filter((p) => p.avgRating >= query.rating!);
+  }
+  if (query.onSale) {
+    products = products.filter(
+      (p) =>
+        p.flashSale || (p.comparePrice !== null && p.comparePrice > p.minPrice)
+    );
+  }
+
+  switch (query.sort ?? "featured") {
+    case "newest":
+      products.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+      break;
+    case "best-selling":
+      products.sort((a, b) => b.soldCount - a.soldCount);
+      break;
+    case "price-asc":
+      products.sort((a, b) => effectivePrice(a) - effectivePrice(b));
+      break;
+    case "price-desc":
+      products.sort((a, b) => effectivePrice(b) - effectivePrice(a));
+      break;
+    case "rating":
+      products.sort((a, b) => b.avgRating - a.avgRating);
+      break;
+    default:
+      products.sort(
+        (a, b) =>
+          Number(b.isFeatured) - Number(a.isFeatured) ||
+          b.soldCount - a.soldCount
+      );
+  }
+
+  return { products, total: products.length };
 }
 
 export async function getRelatedProducts(

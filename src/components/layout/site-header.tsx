@@ -3,15 +3,18 @@ import { HeartIcon, SearchIcon, ShoppingBagIcon, UserIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DesktopNav } from "@/components/layout/desktop-nav";
 import { Logo } from "@/components/layout/logo";
 import { MobileNav } from "@/components/layout/mobile-nav";
-import { siteConfig } from "@/config/site";
+import { getNavMenu } from "@/lib/api/nav";
 import { cn } from "@/lib/utils";
 
 const headerIconHover =
   "hover:bg-[oklch(0.88_0.06_80/0.5)] hover:text-brand";
 
-export function SiteHeader() {
+export async function SiteHeader() {
+  const navItems = await getNavMenu();
+
   return (
     <header className="sticky top-0 z-50">
       <p className="bg-primary px-4 py-1.5 text-center text-xs text-primary-foreground">
@@ -20,6 +23,7 @@ export function SiteHeader() {
       </p>
 
       <div
+        id="site-header-bar"
         className="border-b border-[oklch(0.88_0.04_82/0.8)] backdrop-blur"
         style={{
           background:
@@ -31,20 +35,7 @@ export function SiteHeader() {
 
           <Logo priority className="h-12 md:h-16" />
 
-          <nav className="ml-8 hidden items-center gap-6 md:flex">
-            {siteConfig.mainNav.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "text-sm font-medium transition-colors hover:text-brand",
-                  item.highlight ? "text-brand" : "text-foreground/80"
-                )}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
+          <DesktopNav items={navItems} />
 
           <div className="ml-auto flex items-center gap-1">
             <form action="/search" className="relative hidden lg:block">
