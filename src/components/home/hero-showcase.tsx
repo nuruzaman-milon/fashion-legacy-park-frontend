@@ -181,7 +181,7 @@ export function HeroShowcase({
                     repeat: Infinity,
                     ease: "easeInOut",
                   }}
-                  className="relative isolate aspect-3/4 overflow-hidden rounded-2xl shadow-2xl ring-1 ring-white/10"
+                  className="relative isolate aspect-3/4 overflow-hidden rounded-2xl rounded-tr-[2.5rem] shadow-2xl ring-1 ring-[oklch(0.72_0.09_70/0.4)] md:rounded-tr-[4rem]"
                 >
                   <AnimatePresence initial={false}>
                     <motion.div
@@ -215,6 +215,16 @@ export function HeroShowcase({
                       </motion.div>
                     </motion.div>
                   </AnimatePresence>
+
+                  {/* Warm light spilling in from the top-right corner. */}
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 z-10 mix-blend-screen"
+                    style={{
+                      background:
+                        "radial-gradient(65% 50% at 97% 3%, oklch(0.8 0.12 75 / 0.5), oklch(0.65 0.1 65 / 0.16) 45%, transparent 72%)",
+                    }}
+                  />
 
                   {/* Warm the browser cache for the incoming slide so it never
                       pops in half-loaded mid-animation. */}
