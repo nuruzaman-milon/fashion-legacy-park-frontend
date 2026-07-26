@@ -12,6 +12,7 @@ import {
   TruckIcon,
   ZapIcon,
   ZoomInIcon,
+  ZoomOutIcon,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -58,31 +59,84 @@ export function ProductView({ product }: { product: ProductDetail }) {
       const idx = product.images.findIndex(
         (img) => img.optionValueId === valueId
       );
-      setImageIndex(idx >= 0 ? idx : 0);
+      showImage(idx >= 0 ? idx : 0);
     }
     setQuantity(1);
   };
 
-  // Hover zoom: pan follows the cursor via direct DOM writes (no re-renders).
+  // Zoom. Mouse: hover zooms and the focus follows the cursor. Touch: tap
+  // toggles zoom at the tapped spot, dragging pans while zoomed. Pan writes
+  // go straight to the DOM (no re-renders); only the tap toggle is state.
   const zoomWrapRef = React.useRef<HTMLDivElement | null>(null);
   const zoomImgRef = React.useRef<HTMLImageElement | null>(null);
+  const touchGestureRef = React.useRef({ startX: 0, startY: 0, dragged: false });
+  const [touchZoomed, setTouchZoomed] = React.useState(false);
 
-  const onZoomMove = (e: React.MouseEvent) => {
+  const setZoomAt = (clientX: number, clientY: number) => {
     const wrap = zoomWrapRef.current;
     const img = zoomImgRef.current;
     if (!wrap || !img) return;
     const rect = wrap.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const x = Math.min(
+      100,
+      Math.max(0, ((clientX - rect.left) / rect.width) * 100)
+    );
+    const y = Math.min(
+      100,
+      Math.max(0, ((clientY - rect.top) / rect.height) * 100)
+    );
     img.style.transformOrigin = `${x}% ${y}%`;
     img.style.transform = "scale(2.2)";
   };
 
-  const onZoomLeave = () => {
+  const clearZoom = () => {
     const img = zoomImgRef.current;
     if (!img) return;
     img.style.transform = "";
     img.style.transformOrigin = "";
+  };
+
+  const onZoomPointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType !== "touch") return;
+    touchGestureRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      dragged: false,
+    };
+  };
+
+  const onZoomPointerMove = (e: React.PointerEvent) => {
+    if (e.pointerType === "mouse") {
+      setZoomAt(e.clientX, e.clientY);
+      return;
+    }
+    const gesture = touchGestureRef.current;
+    if (
+      Math.hypot(e.clientX - gesture.startX, e.clientY - gesture.startY) > 8
+    ) {
+      gesture.dragged = true;
+    }
+    if (touchZoomed && gesture.dragged) setZoomAt(e.clientX, e.clientY);
+  };
+
+  const onZoomPointerUp = (e: React.PointerEvent) => {
+    if (e.pointerType !== "touch" || touchGestureRef.current.dragged) return;
+    if (touchZoomed) {
+      clearZoom();
+      setTouchZoomed(false);
+    } else {
+      setZoomAt(e.clientX, e.clientY);
+      setTouchZoomed(true);
+    }
+  };
+
+  const onZoomPointerLeave = (e: React.PointerEvent) => {
+    if (e.pointerType === "mouse") clearZoom();
+  };
+
+  const showImage = (index: number) => {
+    setImageIndex(index);
+    setTouchZoomed(false);
   };
 
   return (
@@ -94,7 +148,7 @@ export function ProductView({ product }: { product: ProductDetail }) {
               <button
                 key={img.src}
                 type="button"
-                onClick={() => setImageIndex(i)}
+                onClick={() => showImage(i)}
                 aria-label={`Show image ${i + 1}`}
                 aria-current={i === imageIndex}
                 className={cn(
@@ -118,8 +172,11 @@ export function ProductView({ product }: { product: ProductDetail }) {
 
         <div
           ref={zoomWrapRef}
-          onMouseMove={onZoomMove}
-          onMouseLeave={onZoomLeave}
+          onPointerDown={onZoomPointerDown}
+          onPointerMove={onZoomPointerMove}
+          onPointerUp={onZoomPointerUp}
+          onPointerLeave={onZoomPointerLeave}
+          style={{ touchAction: touchZoomed ? "none" : "manipulation" }}
           className="group/zoom relative aspect-3/4 min-w-0 flex-1 cursor-zoom-in overflow-hidden rounded-2xl bg-muted lg:self-start"
         >
           <Image
@@ -142,9 +199,16 @@ export function ProductView({ product }: { product: ProductDetail }) {
           </div>
           <span
             aria-hidden
-            className="pointer-events-none absolute right-3 bottom-3 hidden size-9 items-center justify-center rounded-full bg-background/80 text-foreground shadow-sm backdrop-blur transition-opacity group-hover/zoom:opacity-0 lg:flex"
+            className={cn(
+              "pointer-events-none absolute right-3 bottom-3 flex size-9 items-center justify-center rounded-full bg-background/80 text-foreground shadow-sm backdrop-blur transition-opacity",
+              !touchZoomed && "lg:group-hover/zoom:opacity-0"
+            )}
           >
-            <ZoomInIcon className="size-4" />
+            {touchZoomed ? (
+              <ZoomOutIcon className="size-4" />
+            ) : (
+              <ZoomInIcon className="size-4" />
+            )}
           </span>
         </div>
       </div>
