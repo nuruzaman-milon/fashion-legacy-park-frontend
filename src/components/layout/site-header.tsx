@@ -3,8 +3,8 @@ import Link from "next/link";
 import { HeartIcon, SearchIcon, ShoppingBagIcon, UserIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { DesktopNav, DesktopNavFallback } from "@/components/layout/desktop-nav";
+import { SearchBox } from "@/components/layout/search-box";
 import { Logo } from "@/components/layout/logo";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { getNavMenu } from "@/lib/api/nav";
@@ -41,15 +41,9 @@ export async function SiteHeader() {
           </Suspense>
 
           <div className="ml-auto flex items-center gap-1">
-            <form action="/search" className="relative hidden lg:block">
-              <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="search"
-                name="q"
-                placeholder="Search for kurti, panjabi, saree…"
-                className="w-64 rounded-full border-[oklch(0.85_0.05_80)] bg-muted pl-9"
-              />
-            </form>
+            <div className="hidden lg:block">
+              <SearchBox />
+            </div>
             <Button
               variant="ghost"
               size="icon"
