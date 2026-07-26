@@ -53,7 +53,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <ChevronRightIcon className="size-3" aria-hidden />
           <li>
             <Link
-              href={`/categories/${product.category.slug}`}
+              href={`/products?category=${product.category.slug}`}
               className="transition-colors hover:text-brand"
             >
               {product.category.name}
@@ -107,7 +107,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <ProductRail
             eyebrow="You may also like"
             title={`More from ${product.category.name}`}
-            viewAllHref={`/categories/${product.category.slug}`}
+            viewAllHref={`/products?category=${product.category.slug}`}
             products={related}
             layout="scroll"
           />

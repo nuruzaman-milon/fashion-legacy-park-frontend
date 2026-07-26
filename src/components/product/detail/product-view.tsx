@@ -11,6 +11,7 @@ import {
   ShoppingBagIcon,
   TruckIcon,
   ZapIcon,
+  ZoomInIcon,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -35,17 +36,10 @@ export function ProductView({ product }: { product: ProductDetail }) {
       v.optionValueIds.every((id) => selectedIds.includes(id))
     ) ?? product.variants[0];
 
-  // Colour-scoped gallery: images tagged with the selected colour first,
-  // then unscoped ones; fall back to everything.
+  // The gallery always shows every shot; picking a colour jumps the main
+  // image to that colour's photo (thumbnails stay browsable).
   const colorGroup = product.options.find((g) => g.displayType === "SWATCH");
-  const selectedColorId = colorGroup ? selected[colorGroup.id] : null;
-  const gallery = React.useMemo(() => {
-    const scoped = product.images.filter(
-      (img) =>
-        img.optionValueId === null || img.optionValueId === selectedColorId
-    );
-    return scoped.length > 0 ? scoped : product.images;
-  }, [product.images, selectedColorId]);
+  const gallery = product.images;
   const activeImage = gallery[Math.min(imageIndex, gallery.length - 1)];
 
   const sale = product.flashSale;
@@ -60,34 +54,42 @@ export function ProductView({ product }: { product: ProductDetail }) {
 
   const selectValue = (groupId: string, valueId: string) => {
     setSelected((s) => ({ ...s, [groupId]: valueId }));
-    if (colorGroup && groupId === colorGroup.id) setImageIndex(0);
+    if (colorGroup && groupId === colorGroup.id) {
+      const idx = product.images.findIndex(
+        (img) => img.optionValueId === valueId
+      );
+      setImageIndex(idx >= 0 ? idx : 0);
+    }
     setQuantity(1);
+  };
+
+  // Hover zoom: pan follows the cursor via direct DOM writes (no re-renders).
+  const zoomWrapRef = React.useRef<HTMLDivElement | null>(null);
+  const zoomImgRef = React.useRef<HTMLImageElement | null>(null);
+
+  const onZoomMove = (e: React.MouseEvent) => {
+    const wrap = zoomWrapRef.current;
+    const img = zoomImgRef.current;
+    if (!wrap || !img) return;
+    const rect = wrap.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    img.style.transformOrigin = `${x}% ${y}%`;
+    img.style.transform = "scale(2.2)";
+  };
+
+  const onZoomLeave = () => {
+    const img = zoomImgRef.current;
+    if (!img) return;
+    img.style.transform = "";
+    img.style.transformOrigin = "";
   };
 
   return (
     <div className="grid gap-8 lg:grid-cols-2 lg:gap-12">
-      <div>
-        <div className="relative aspect-3/4 overflow-hidden rounded-2xl bg-muted">
-          <Image
-            key={activeImage.src}
-            src={activeImage.src}
-            alt={activeImage.alt}
-            fill
-            priority
-            sizes="(min-width: 1024px) 45vw, 100vw"
-            className="object-cover"
-          />
-          <div className="absolute top-3 left-3 flex flex-col items-start gap-1.5">
-            {hasDiscount && (
-              <Badge className="bg-brand text-brand-foreground">
-                −{discountPercent(price, compareAt)}%
-              </Badge>
-            )}
-            {product.isNew && <Badge variant="secondary">New</Badge>}
-          </div>
-        </div>
+      <div className="flex flex-col gap-3 lg:flex-row">
         {gallery.length > 1 && (
-          <div className="mt-3 flex gap-2.5">
+          <div className="order-last flex gap-2.5 overflow-x-auto lg:order-first lg:flex-col lg:overflow-visible">
             {gallery.map((img, i) => (
               <button
                 key={img.src}
@@ -96,7 +98,7 @@ export function ProductView({ product }: { product: ProductDetail }) {
                 aria-label={`Show image ${i + 1}`}
                 aria-current={i === imageIndex}
                 className={cn(
-                  "relative aspect-3/4 w-16 overflow-hidden rounded-lg transition-all",
+                  "relative aspect-3/4 w-16 shrink-0 overflow-hidden rounded-lg transition-all",
                   i === imageIndex
                     ? "ring-2 ring-brand"
                     : "opacity-60 ring-1 ring-border hover:opacity-100"
@@ -113,6 +115,38 @@ export function ProductView({ product }: { product: ProductDetail }) {
             ))}
           </div>
         )}
+
+        <div
+          ref={zoomWrapRef}
+          onMouseMove={onZoomMove}
+          onMouseLeave={onZoomLeave}
+          className="group/zoom relative aspect-3/4 min-w-0 flex-1 cursor-zoom-in overflow-hidden rounded-2xl bg-muted lg:self-start"
+        >
+          <Image
+            key={activeImage.src}
+            ref={zoomImgRef}
+            src={activeImage.src}
+            alt={activeImage.alt}
+            fill
+            priority
+            sizes="(min-width: 1024px) 45vw, 100vw"
+            className="object-cover transition-transform duration-200 ease-out"
+          />
+          <div className="absolute top-3 left-3 flex flex-col items-start gap-1.5">
+            {hasDiscount && (
+              <Badge className="bg-brand text-brand-foreground">
+                −{discountPercent(price, compareAt)}%
+              </Badge>
+            )}
+            {product.isNew && <Badge variant="secondary">New</Badge>}
+          </div>
+          <span
+            aria-hidden
+            className="pointer-events-none absolute right-3 bottom-3 hidden size-9 items-center justify-center rounded-full bg-background/80 text-foreground shadow-sm backdrop-blur transition-opacity group-hover/zoom:opacity-0 lg:flex"
+          >
+            <ZoomInIcon className="size-4" />
+          </span>
+        </div>
       </div>
 
       <div>

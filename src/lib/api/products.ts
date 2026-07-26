@@ -264,11 +264,22 @@ export async function getProductBySlug(
     : [];
   const images: ProductImageInfo[] =
     colorValues.length > 0
-      ? colorValues.map((value, i) => ({
-          src: i === 0 ? base.image! : (siblings[i - 1] ?? base.image!),
-          alt: `${base.title} — ${value.label}`,
-          optionValueId: value.id,
-        }))
+      ? [
+          ...colorValues.map((value, i) => ({
+            src: i === 0 ? base.image! : (siblings[i - 1] ?? base.image!),
+            alt: `${base.title} — ${value.label}`,
+            optionValueId: value.id,
+          })),
+          // Unscoped detail shots (visible for every colour) so the gallery
+          // always offers multiple views.
+          ...siblings
+            .slice(colorValues.length - 1, colorValues.length + 1)
+            .map((src, i) => ({
+              src,
+              alt: `${base.title} — detail view ${i + 1}`,
+              optionValueId: null,
+            })),
+        ]
       : [
           { src: base.image!, alt: base.title, optionValueId: null },
           ...siblings.slice(0, 2).map((src, i) => ({

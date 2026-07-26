@@ -30,7 +30,7 @@ export function CategoryCarousel({
             <div className="mt-2.5">
               <h3 className="text-sm font-semibold">
                 <Link
-                  href={`/categories/${category.slug}`}
+                  href={`/products?category=${category.slug}`}
                   className="after:absolute after:inset-0"
                 >
                   {category.name}

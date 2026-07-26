@@ -113,23 +113,35 @@ export function Carousel({
       startScroll: track.scrollLeft,
       moved: false,
     };
-    setDragging(true);
-    track.setPointerCapture(e.pointerId);
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
     const drag = dragRef.current;
     if (drag.pointerId !== e.pointerId) return;
-    const dx = e.clientX - drag.startX;
-    if (Math.abs(dx) > 6) drag.moved = true;
     const track = trackRef.current;
-    if (track) track.scrollLeft = drag.startScroll - dx;
+    if (!track) return;
+    const dx = e.clientX - drag.startX;
+    if (!drag.moved) {
+      if (Math.abs(dx) <= 6) return;
+      // A real drag starts here. Capture the pointer only now — capturing on
+      // pointerdown would retarget the eventual click event to the track,
+      // silently swallowing every link click inside the carousel. Snapping is
+      // suspended inline as well: the class swap from setDragging lands a
+      // frame later, and active snap-mandatory would undo the first writes.
+      drag.moved = true;
+      track.style.scrollSnapType = "none";
+      setDragging(true);
+      track.setPointerCapture(e.pointerId);
+    }
+    track.scrollLeft = drag.startScroll - dx;
   };
 
   const endDrag = (e: React.PointerEvent) => {
     const drag = dragRef.current;
     if (drag.pointerId !== e.pointerId) return;
     drag.pointerId = -1;
+    // Plain click, never dragged — nothing to glide or settle.
+    if (!drag.moved) return;
 
     const track = trackRef.current;
     if (track) {
@@ -150,7 +162,11 @@ export function Carousel({
       }
       track.scrollTo({ left: nearest, behavior: "smooth" });
     }
-    settleTimer.current = window.setTimeout(() => setDragging(false), 420);
+    settleTimer.current = window.setTimeout(() => {
+      const t = trackRef.current;
+      if (t) t.style.scrollSnapType = "";
+      setDragging(false);
+    }, 420);
   };
 
   /** A real drag should not trigger the link it ended on. */
@@ -174,7 +190,9 @@ export function Carousel({
         onClickCapture={onClickCapture}
         onDragStart={(e) => e.preventDefault()}
         className={cn(
-          "flex gap-4 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          // -m/p pairs give hover-scaled cards room inside the scroll clip
+          // without shifting the visible layout.
+          "-mx-1.5 -my-2 flex gap-4 overflow-x-auto px-1.5 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
           dragging
             ? "cursor-grabbing snap-none select-none"
             : "cursor-grab snap-x snap-mandatory",
