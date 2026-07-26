@@ -32,7 +32,7 @@ export function MobileFilters({ children }: { children: React.ReactNode }) {
           <SheetTitle>Filters</SheetTitle>
         </SheetHeader>
         <div
-          className="flex-1 overflow-y-auto px-2 pb-6"
+          className="scrollbar-subtle flex-1 overflow-y-auto px-2 pb-6"
           onClick={(event) => {
             if ((event.target as HTMLElement).closest("a")) setOpen(false);
           }}

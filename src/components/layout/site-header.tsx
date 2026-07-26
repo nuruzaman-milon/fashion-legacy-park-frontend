@@ -1,9 +1,10 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { HeartIcon, SearchIcon, ShoppingBagIcon, UserIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DesktopNav } from "@/components/layout/desktop-nav";
+import { DesktopNav, DesktopNavFallback } from "@/components/layout/desktop-nav";
 import { Logo } from "@/components/layout/logo";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { getNavMenu } from "@/lib/api/nav";
@@ -35,7 +36,9 @@ export async function SiteHeader() {
 
           <Logo priority className="h-12 md:h-16" />
 
-          <DesktopNav items={navItems} />
+          <Suspense fallback={<DesktopNavFallback items={navItems} />}>
+            <DesktopNav items={navItems} />
+          </Suspense>
 
           <div className="ml-auto flex items-center gap-1">
             <form action="/search" className="relative hidden lg:block">

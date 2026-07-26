@@ -33,7 +33,7 @@ export function FlashSaleSection({
           <div className="flex items-center gap-5">
             <SaleCountdown endsAt={sale.endsAt} />
             <Link
-              href="/sale"
+              href="/products?sale=1"
               className="group flex items-center gap-1.5 text-sm font-medium text-background/80 transition-colors hover:text-background"
             >
               View all

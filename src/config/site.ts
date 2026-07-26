@@ -7,20 +7,20 @@ export const siteConfig = {
 
   mainNav: [
     { label: "New In", href: "/products?sort=newest" },
-    { label: "Women", href: "/categories/womens-wear" },
-    { label: "Men", href: "/categories/mens-wear" },
-    { label: "Kids", href: "/categories/kids" },
-    { label: "Accessories", href: "/categories/accessories" },
-    { label: "Sale", href: "/sale", highlight: true },
+    { label: "Women", href: "/products?category=womens-wear" },
+    { label: "Men", href: "/products?category=mens-wear" },
+    { label: "Kids", href: "/products?category=kids" },
+    { label: "Accessories", href: "/products?category=accessories" },
+    { label: "Sale", href: "/products?sale=1", highlight: true },
   ] as { label: string; href: string; highlight?: boolean }[],
 
   footerNav: {
     shop: [
       { label: "New arrivals", href: "/products?sort=newest" },
       { label: "Best sellers", href: "/products?sort=best-selling" },
-      { label: "Women's wear", href: "/categories/womens-wear" },
-      { label: "Men's wear", href: "/categories/mens-wear" },
-      { label: "Flash sale", href: "/sale" },
+      { label: "Women's wear", href: "/products?category=womens-wear" },
+      { label: "Men's wear", href: "/products?category=mens-wear" },
+      { label: "Flash sale", href: "/products?sale=1" },
     ],
     help: [
       { label: "Track your order", href: "/account/orders" },

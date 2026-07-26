@@ -23,7 +23,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
   const hasDiscount = compareAt !== null && compareAt > price;
 
   return (
-    <article className={cn("group relative", className)}>
+    <article className={cn("group relative isolate", className)}>
       <div className="relative">
         <ProductThumb
           title={product.title}

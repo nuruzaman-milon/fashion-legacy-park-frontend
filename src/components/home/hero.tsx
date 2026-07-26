@@ -53,7 +53,7 @@ export function Hero({ banner }: { banner: HomeBanner }) {
               size="lg"
               variant="outline"
               className="h-11 border-white/25 bg-transparent px-6 text-base text-background hover:bg-white/10 hover:text-background dark:border-white/25 dark:bg-transparent dark:hover:bg-white/10"
-              render={<Link href="/sale" />}
+              render={<Link href="/products?sale=1" />}
             >
               Explore the sale
             </Button>

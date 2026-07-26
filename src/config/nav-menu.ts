@@ -1,7 +1,7 @@
 /**
  * Declarative config for the desktop mega menu. Subcategories don't exist
  * in the catalog model yet, so panel columns are hand-curated here; hrefs
- * point at the future filtered-listing routes. `productsFrom` names the
+ * point at the category-filtered products listing. `productsFrom` names the
  * category slugs whose newest products fill the panel's NEW ARRIVALS grid
  * (resolved on the server in `src/lib/api/nav.ts`).
  */
@@ -31,7 +31,7 @@ export const navMenuConfig: NavMenuItemConfig[] = [
   {
     type: "mega",
     label: "Women",
-    href: "/categories/womens-wear",
+    href: "/products?category=womens-wear",
     columns: [
       {
         title: "Clothing",
@@ -44,7 +44,7 @@ export const navMenuConfig: NavMenuItemConfig[] = [
           { label: "Pants", href: sub("womens-wear", "pants") },
           { label: "Jackets & Blazers", href: sub("womens-wear", "jackets") },
           { label: "Knitwear", href: sub("womens-wear", "knitwear") },
-          { label: "Sarees & Ethnic", href: "/categories/sarees-ethnic" },
+          { label: "Sarees & Ethnic", href: "/products?category=sarees-ethnic" },
         ],
       },
       {
@@ -75,7 +75,7 @@ export const navMenuConfig: NavMenuItemConfig[] = [
   {
     type: "mega",
     label: "Men",
-    href: "/categories/mens-wear",
+    href: "/products?category=mens-wear",
     columns: [
       {
         title: "Clothing",
@@ -116,7 +116,7 @@ export const navMenuConfig: NavMenuItemConfig[] = [
   {
     type: "mega",
     label: "Kids",
-    href: "/categories/kids",
+    href: "/products?category=kids",
     columns: [
       {
         title: "Clothing",
@@ -150,7 +150,7 @@ export const navMenuConfig: NavMenuItemConfig[] = [
   {
     type: "mega",
     label: "Accessories",
-    href: "/categories/accessories",
+    href: "/products?category=accessories",
     columns: [
       {
         title: "Bags",
@@ -181,5 +181,5 @@ export const navMenuConfig: NavMenuItemConfig[] = [
     ],
     productsFrom: ["cosmetics", "footwear"],
   },
-  { type: "link", label: "Sale", href: "/sale", highlight: true },
+  { type: "link", label: "Sale", href: "/products?sale=1", highlight: true },
 ];

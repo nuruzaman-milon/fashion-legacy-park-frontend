@@ -1,6 +1,8 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { ArrowRightIcon } from "lucide-react";
 
 import {
@@ -17,6 +19,31 @@ import type { ResolvedNavItem } from "@/lib/api/nav";
 import { cn } from "@/lib/utils";
 
 type Panel = NonNullable<ResolvedNavItem["panel"]>;
+
+const plainLinkClasses = (active: boolean) =>
+  cn(
+    "text-sm font-medium transition-colors outline-none hover:text-brand focus-visible:text-brand",
+    active ? "text-brand" : "text-foreground/80"
+  );
+
+/**
+ * A nav item is active when the current pathname matches its href and every
+ * query param the href carries is present with the same value (extra params
+ * in the current URL are ignored, so /products?category=x&type=y still
+ * lights up the category's menu).
+ */
+function isItemActive(
+  href: string,
+  pathname: string,
+  search: URLSearchParams
+) {
+  const [path, query = ""] = href.split("?");
+  if (path !== pathname) return false;
+  for (const [key, value] of new URLSearchParams(query)) {
+    if (search.get(key) !== value) return false;
+  }
+  return true;
+}
 
 function MegaPanel({ label, href, panel }: { label: string; href: string; panel: Panel }) {
   return (
@@ -88,13 +115,38 @@ function MegaPanel({ label, href, panel }: { label: string; href: string; panel:
 }
 
 export function DesktopNav({ items }: { items: ResolvedNavItem[] }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [menuValue, setMenuValue] = React.useState<string | null>(null);
+
+  // Triggers are links now, so a click both toggles the popup and navigates;
+  // resetting when the URL changes keeps the panel from lingering over the
+  // new page (state-adjustment-during-render, per react.dev/learn).
+  const url = pathname + "?" + searchParams.toString();
+  const [prevUrl, setPrevUrl] = React.useState(url);
+  if (url !== prevUrl) {
+    setPrevUrl(url);
+    setMenuValue(null);
+  }
+
   return (
-    <NavigationMenu className="ml-8 hidden md:block">
+    <NavigationMenu
+      className="ml-8 hidden md:block"
+      value={menuValue}
+      onValueChange={(value) => setMenuValue(value as string | null)}
+    >
       <NavigationMenuList>
-        {items.map((item) =>
-          item.panel ? (
+        {items.map((item) => {
+          const active = isItemActive(item.href, pathname, searchParams);
+          return item.panel ? (
             <NavigationMenuItem key={item.label} value={item.label}>
-              <NavigationMenuTrigger>{item.label}</NavigationMenuTrigger>
+              <NavigationMenuTrigger
+                nativeButton={false}
+                render={<Link href={item.href} />}
+                className={active ? "text-brand" : undefined}
+              >
+                {item.label}
+              </NavigationMenuTrigger>
               <NavigationMenuContent>
                 <MegaPanel label={item.label} href={item.href} panel={item.panel} />
               </NavigationMenuContent>
@@ -103,16 +155,13 @@ export function DesktopNav({ items }: { items: ResolvedNavItem[] }) {
             <NavigationMenuItem key={item.label}>
               <NavigationMenuLink
                 render={<Link href={item.href} />}
-                className={cn(
-                  "text-sm font-medium transition-colors hover:text-brand",
-                  item.highlight ? "text-brand" : "text-foreground/80"
-                )}
+                className={plainLinkClasses(active)}
               >
                 {item.label}
               </NavigationMenuLink>
             </NavigationMenuItem>
-          )
-        )}
+          );
+        })}
       </NavigationMenuList>
       <NavigationMenuViewport
         anchor={() => document.getElementById("site-header-bar")}
@@ -120,5 +169,28 @@ export function DesktopNav({ items }: { items: ResolvedNavItem[] }) {
         collisionPadding={0}
       />
     </NavigationMenu>
+  );
+}
+
+/**
+ * Server-renderable stand-in shown while DesktopNav (which reads the URL via
+ * useSearchParams) hydrates on statically prerendered pages. Visually
+ * identical at rest: same labels, same spacing, plain links, no panels.
+ */
+export function DesktopNavFallback({ items }: { items: ResolvedNavItem[] }) {
+  return (
+    <nav className="ml-8 hidden md:block">
+      <div className="flex items-center gap-6">
+        {items.map((item) => (
+          <Link
+            key={item.label}
+            href={item.href}
+            className={plainLinkClasses(false)}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </div>
+    </nav>
   );
 }

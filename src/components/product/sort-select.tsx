@@ -2,6 +2,14 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 const OPTIONS = [
   { value: "featured", label: "Featured" },
   { value: "newest", label: "Newest" },
@@ -17,26 +25,30 @@ export function SortSelect() {
   const current = searchParams.get("sort") ?? "featured";
 
   return (
-    <label className="flex items-center gap-2 text-sm text-muted-foreground">
+    <div className="flex items-center gap-2 text-sm text-muted-foreground">
       <span className="hidden sm:inline">Sort</span>
-      <select
+      <Select
         value={current}
-        aria-label="Sort products"
-        onChange={(event) => {
+        items={OPTIONS}
+        onValueChange={(value) => {
           const qs = new URLSearchParams(searchParams);
-          if (event.target.value === "featured") qs.delete("sort");
-          else qs.set("sort", event.target.value);
+          if (!value || value === "featured") qs.delete("sort");
+          else qs.set("sort", value);
           const s = qs.toString();
           router.push(s ? `/products?${s}` : "/products", { scroll: false });
         }}
-        className="h-9 rounded-lg border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       >
-        {OPTIONS.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
+        <SelectTrigger aria-label="Sort products" className="w-44">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {OPTIONS.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
