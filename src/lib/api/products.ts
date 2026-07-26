@@ -122,6 +122,43 @@ export async function getProducts(
   return { products, total: products.length };
 }
 
+/** Synonyms/aliases a shopper may type that the titles don't contain. */
+const SEARCH_KEYWORDS: Record<string, string> = {
+  "scarlet-party-gown": "dress red party",
+  "sky-wrap-maxi-dress": "dress blue",
+  "ivory-floral-wrap-dress": "white",
+  "chambray-casual-shirt": "blue",
+  "essential-crew-tee": "t-shirt tshirt",
+  "midnight-slim-blazer": "suit black",
+  "crimson-knit-sneakers": "shoes red running",
+  "teal-suede-brogues": "shoes formal",
+  "azure-floral-heels": "shoes blue",
+  "velvet-red-lip-duo": "lipstick makeup",
+  "daily-skincare-trio": "beauty",
+  "pro-makeup-collection": "beauty palette",
+};
+
+export async function searchProducts(
+  term: string
+): Promise<{ products: ProductListItem[]; total: number }> {
+  const words = term.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return { products: [], total: 0 };
+
+  // Every word must appear in the title, category name or keyword aliases;
+  // title hits rank above the rest, ties broken by popularity.
+  const scored = mockProducts.map(withDerived).flatMap((p) => {
+    const title = p.title.toLowerCase();
+    const haystack = `${title} ${p.category.name.toLowerCase()} ${SEARCH_KEYWORDS[p.slug] ?? ""}`;
+    if (!words.every((w) => haystack.includes(w))) return [];
+    const score = words.reduce((s, w) => s + (title.includes(w) ? 2 : 1), 0);
+    return [{ p, score }];
+  });
+  scored.sort((a, b) => b.score - a.score || b.p.soldCount - a.p.soldCount);
+
+  const products = scored.map((s) => s.p);
+  return { products, total: products.length };
+}
+
 export async function getRelatedProducts(
   categorySlug: string,
   excludeId: string

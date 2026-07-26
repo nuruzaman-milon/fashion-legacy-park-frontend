@@ -24,6 +24,7 @@ function SelectTrigger({
         "hover:border-[oklch(0.85_0.05_80)] hover:bg-accent/40",
         "focus-visible:ring-2 focus-visible:ring-ring/50",
         "data-[popup-open]:border-[oklch(0.85_0.05_80)] data-[popup-open]:bg-accent/40",
+        "data-[placeholder]:text-muted-foreground",
         "data-disabled:cursor-not-allowed data-disabled:opacity-50",
         className
       )}

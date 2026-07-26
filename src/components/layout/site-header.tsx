@@ -55,6 +55,7 @@ export async function SiteHeader() {
               size="icon"
               className={cn("lg:hidden", headerIconHover)}
               aria-label="Search"
+              render={<Link href="/search" />}
             >
               <SearchIcon className="size-5" />
             </Button>
