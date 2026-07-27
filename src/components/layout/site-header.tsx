@@ -1,12 +1,13 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { HeartIcon, SearchIcon, ShoppingBagIcon, UserIcon } from "lucide-react";
+import { HeartIcon, SearchIcon, ShoppingBagIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { DesktopNav, DesktopNavFallback } from "@/components/layout/desktop-nav";
 import { SearchBox } from "@/components/layout/search-box";
 import { Logo } from "@/components/layout/logo";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { UserMenu } from "@/components/layout/user-menu";
 import { getNavMenu } from "@/lib/api/nav";
 import { cn } from "@/lib/utils";
 
@@ -71,15 +72,7 @@ export async function SiteHeader() {
             >
               <ShoppingBagIcon className="size-5" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={headerIconHover}
-              aria-label="Account"
-              render={<Link href="/login" />}
-            >
-              <UserIcon className="size-5" />
-            </Button>
+            <UserMenu className={headerIconHover} />
           </div>
         </div>
       </div>

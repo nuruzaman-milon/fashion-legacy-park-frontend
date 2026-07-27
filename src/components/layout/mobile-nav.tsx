@@ -10,6 +10,7 @@ import {
   MenuIcon,
 } from "lucide-react";
 
+import { useAuth } from "@/components/auth/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/layout/logo";
 import { Separator } from "@/components/ui/separator";
@@ -35,6 +36,7 @@ export function MobileNav() {
   const [open, setOpen] = React.useState(false);
   const [view, setView] = React.useState<string | null>(null);
   const reduceMotion = useReducedMotion();
+  const { status, logout } = useAuth();
 
   const close = () => setOpen(false);
   const activeItem = navMenuConfig.find(
@@ -155,13 +157,35 @@ export function MobileNav() {
                   )}
                 </nav>
                 <Separator className="my-3" />
-                <Link
-                  href="/login"
-                  onClick={close}
-                  className="block rounded-lg px-2 py-3 text-base font-medium text-foreground hover:bg-muted"
-                >
-                  Sign in
-                </Link>
+                {status === "authenticated" ? (
+                  <>
+                    <Link
+                      href="/account"
+                      onClick={close}
+                      className="block rounded-lg px-2 py-3 text-base font-medium text-foreground hover:bg-muted"
+                    >
+                      My account
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        close();
+                        void logout();
+                      }}
+                      className="block w-full rounded-lg px-2 py-3 text-left text-base font-medium text-foreground hover:bg-muted"
+                    >
+                      Sign out
+                    </button>
+                  </>
+                ) : (
+                  <Link
+                    href="/login"
+                    onClick={close}
+                    className="block rounded-lg px-2 py-3 text-base font-medium text-foreground hover:bg-muted"
+                  >
+                    Sign in
+                  </Link>
+                )}
                 <Link
                   href="/account/orders"
                   onClick={close}
