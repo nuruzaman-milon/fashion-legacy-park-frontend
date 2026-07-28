@@ -11,7 +11,7 @@ export function CategoryCarousel({
   categories: CategorySummary[];
 }) {
   return (
-    <section className="mx-auto max-w-7xl px-4 sm:px-6">
+    <section className="mx-auto max-w-8xl px-4 sm:px-6">
       <SectionHeader
         eyebrow="Browse the store"
         title="Shop by category"

@@ -20,7 +20,7 @@ export function ProductRail({
   layout = "grid",
 }: ProductRailProps) {
   return (
-    <section className="mx-auto max-w-7xl px-4 sm:px-6">
+    <section className="mx-auto max-w-8xl px-4 sm:px-6">
       <SectionHeader
         eyebrow={eyebrow}
         title={title}

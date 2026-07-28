@@ -49,7 +49,7 @@ function BrandLockup() {
  */
 export function EditorialBanner() {
   return (
-    <section aria-label="Winter editorial" className="mx-auto max-w-7xl px-4 sm:px-6">
+    <section aria-label="Winter editorial" className="mx-auto max-w-8xl px-4 sm:px-6">
       <div
         className="relative overflow-hidden rounded-2xl"
         style={{

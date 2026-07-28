@@ -22,7 +22,7 @@ export default function AuthLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <div className="mx-auto grid w-full max-w-5xl items-stretch gap-8 px-4 py-8 sm:px-6 sm:py-12 lg:grid-cols-[1fr_1.15fr] lg:gap-12">
+    <div className="mx-auto grid w-full max-w-6xl items-stretch gap-8 px-4 py-8 sm:px-6 sm:py-12 lg:grid-cols-[1.15fr_1fr] lg:gap-12">
       <aside
         className="hidden flex-col gap-7 rounded-3xl p-8 text-background lg:flex"
         style={{

@@ -42,7 +42,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const related = await getRelatedProducts(product.category.slug, product.id);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-10 px-4 py-6 sm:px-6 sm:py-8">
+    <div className="mx-auto max-w-8xl space-y-10 px-4 py-6 sm:px-6 sm:py-8">
       <nav aria-label="Breadcrumb">
         <ol className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           <li>

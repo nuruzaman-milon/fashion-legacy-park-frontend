@@ -32,7 +32,7 @@ export async function SiteHeader() {
             "radial-gradient(52rem 7rem at 80% 0%, oklch(0.88 0.075 80 / 0.4), transparent 68%), linear-gradient(115deg, oklch(0.96 0.03 86 / 0.94), oklch(0.975 0.014 84 / 0.9) 55%, oklch(0.955 0.035 82 / 0.94))",
         }}
       >
-        <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-4 sm:px-6 md:h-20">
+        <div className="mx-auto flex h-16 max-w-8xl items-center gap-2 px-4 sm:px-6 md:h-20">
           <MobileNav />
 
           <Logo priority className="h-12 md:h-16" />

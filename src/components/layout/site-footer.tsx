@@ -36,7 +36,7 @@ function FooterColumn({
 export function SiteFooter() {
   return (
     <footer className="bg-foreground text-background">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+      <div className="mx-auto max-w-8xl px-4 py-8 sm:px-6">
         <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr_1.2fr]">
           <div>
             <Logo className="h-20" />

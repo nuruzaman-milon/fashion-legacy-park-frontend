@@ -113,7 +113,7 @@ export default async function ProductsPage({
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:h-[calc(100dvh-109px)] lg:overflow-hidden lg:py-0">
+    <div className="mx-auto max-w-8xl px-4 py-8 sm:px-6 sm:py-10 lg:h-[calc(100dvh-109px)] lg:overflow-hidden lg:py-0">
       {/* Lock page scroll on desktop — filters and products scroll independently.
           The footer is hidden so the document is exactly viewport-height: with
           zero scrollable overflow the browser clamps any leftover scroll offset

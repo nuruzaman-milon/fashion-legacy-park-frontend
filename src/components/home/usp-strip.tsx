@@ -93,7 +93,7 @@ export function UspStrip() {
         ))}
       </div>
 
-      <ul className="mx-auto hidden max-w-7xl grid-cols-2 gap-x-6 gap-y-8 px-4 py-6 sm:grid sm:px-6 lg:grid-cols-4">
+      <ul className="mx-auto hidden max-w-8xl grid-cols-2 gap-x-6 gap-y-8 px-4 py-6 sm:grid sm:px-6 lg:grid-cols-4">
         {USPS.map((usp) => (
           <li key={usp.title} className="flex items-start gap-3.5">
             <UspItem usp={usp} />

@@ -75,7 +75,7 @@ export default async function SearchPage({
   }));
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
+    <div className="mx-auto max-w-8xl px-4 py-8 sm:px-6 sm:py-10">
       <p className="text-xs font-semibold tracking-[0.16em] text-brand uppercase">
         Search
       </p>

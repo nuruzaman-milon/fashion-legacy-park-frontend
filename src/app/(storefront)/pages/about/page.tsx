@@ -70,7 +70,7 @@ const MILESTONES = [
 
 export default function AboutPage() {
   return (
-    <div className="mx-auto max-w-7xl space-y-16 px-4 py-8 sm:px-6 sm:py-12 sm:space-y-20">
+    <div className="mx-auto max-w-8xl space-y-16 px-4 py-8 sm:px-6 sm:py-12 sm:space-y-20">
       {/* Editorial hero */}
       <section
         className="grid gap-10 rounded-3xl p-8 text-background sm:p-10 lg:grid-cols-[1.2fr_1fr] lg:items-center lg:gap-14 lg:p-14"
