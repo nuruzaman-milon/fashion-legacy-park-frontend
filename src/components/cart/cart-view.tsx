@@ -18,9 +18,10 @@ import {
 
 import { useAuth } from "@/components/auth/auth-provider";
 import { useShop } from "@/components/shop/shop-provider";
-import { PanelLoading, SignInPrompt } from "@/components/shared/auth-panel";
+import { SignInPrompt } from "@/components/shared/auth-panel";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ProductThumb } from "@/components/product/product-thumb";
 import { formatPrice } from "@/lib/format";
 import { UNAVAILABLE_REASON_LABEL } from "@/lib/api/cart";
@@ -29,6 +30,41 @@ import { cn } from "@/lib/utils";
 
 const FREE_DELIVERY_MIN = 2000;
 const DELIVERY_FEE = 80;
+
+/** Mirrors the cart's lines + summary layout while the cart loads. */
+function CartSkeleton() {
+  return (
+    <div className="mt-4 flex flex-col gap-10 lg:flex-row lg:gap-12">
+      <div className="min-w-0 flex-1 divide-y">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex gap-4 py-5 sm:gap-5">
+            <Skeleton className="aspect-3/4 w-20 shrink-0 rounded-xl sm:w-24" />
+            <div className="flex min-w-0 flex-1 flex-col">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="mt-2 h-3 w-24" />
+              <div className="mt-auto flex items-end justify-between pt-3">
+                <Skeleton className="h-9 w-28 rounded-lg" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="w-full shrink-0 lg:w-96">
+        <div className="rounded-2xl border bg-card p-6">
+          <Skeleton className="h-5 w-36" />
+          <Skeleton className="mt-4 h-14 w-full rounded-xl" />
+          <div className="mt-6 space-y-2.5">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-2/3" />
+          </div>
+          <Skeleton className="mt-6 h-11 w-full rounded-md" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function CartView() {
   const { status } = useAuth();
@@ -77,7 +113,8 @@ export function CartView() {
     return (
       <div>
         {header}
-        <PanelLoading label="Loading cart" />
+        <Skeleton className="mt-2.5 h-4 w-16" />
+        <CartSkeleton />
       </div>
     );
   }

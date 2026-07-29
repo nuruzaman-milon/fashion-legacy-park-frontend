@@ -5,18 +5,6 @@ import { ArrowRightIcon, type LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
-/** Centered spinner for client views waiting on session or data. */
-export function PanelLoading({ label }: { label: string }) {
-  return (
-    <div className="mt-8 flex min-h-[40vh] items-center justify-center">
-      <div
-        aria-label={label}
-        className="size-6 animate-spin rounded-full border-2 border-brand border-t-transparent"
-      />
-    </div>
-  );
-}
-
 /**
  * Friendly gate for login-only pages (cart, wishlist): invites sign-in
  * instead of bouncing, and returns the visitor here via ?next=.

@@ -14,8 +14,9 @@ import {
 
 import { useAuth } from "@/components/auth/auth-provider";
 import { useShop } from "@/components/shop/shop-provider";
-import { PanelLoading, SignInPrompt } from "@/components/shared/auth-panel";
+import { SignInPrompt } from "@/components/shared/auth-panel";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { RatingStars } from "@/components/product/rating-stars";
 import { ProductThumb } from "@/components/product/product-thumb";
 import { formatPrice } from "@/lib/format";
@@ -24,6 +25,33 @@ import type { WishlistItem } from "@/lib/api/wishlist";
 import { cn } from "@/lib/utils";
 
 const ADDED_FEEDBACK_MS = 2000;
+
+/** Mirrors the wishlist rows while the list loads. */
+function WishlistSkeleton() {
+  return (
+    <div className="mt-8 overflow-hidden rounded-2xl border bg-card">
+      <div className="divide-y">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="flex gap-4 p-4 sm:gap-5 sm:p-5">
+            <Skeleton className="aspect-3/4 w-20 shrink-0 rounded-xl sm:w-24" />
+            <div className="flex min-w-0 flex-1 flex-col justify-center gap-2">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-40" />
+            </div>
+            <div className="hidden flex-col items-end justify-center gap-2 sm:flex">
+              <Skeleton className="h-5 w-20" />
+            </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 w-28 rounded-md sm:w-40" />
+              <Skeleton className="size-9 rounded-md" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function StockLine({ item }: { item: WishlistItem }) {
   if (!item.isPurchasable) {
@@ -147,7 +175,8 @@ export function WishlistView() {
     return (
       <div>
         {header}
-        <PanelLoading label="Loading wishlist" />
+        <Skeleton className="mt-2.5 h-4 w-28" />
+        <WishlistSkeleton />
       </div>
     );
   }

@@ -26,7 +26,8 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useShop } from "@/components/shop/shop-provider";
-import { PanelLoading, SignInPrompt } from "@/components/shared/auth-panel";
+import { SignInPrompt } from "@/components/shared/auth-panel";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ProductThumb } from "@/components/product/product-thumb";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -126,6 +127,50 @@ function SectionHeading({ step, title }: { step: number; title: string }) {
   );
 }
 
+/** Mirrors the checkout's form + summary layout while the cart loads. */
+function CheckoutSkeleton() {
+  return (
+    <div>
+      <Skeleton className="h-3 w-16" />
+      <Skeleton className="mt-2 h-9 w-44" />
+      <div className="mt-8 flex flex-col gap-10 lg:flex-row lg:gap-12">
+        <div className="min-w-0 flex-1 space-y-6">
+          {Array.from({ length: 2 }).map((_, section) => (
+            <div key={section} className="rounded-2xl border bg-card p-6">
+              <Skeleton className="h-6 w-44" />
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                {Array.from({ length: 4 }).map((_, field) => (
+                  <div key={field}>
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="mt-1.5 h-10 w-full" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="w-full shrink-0 lg:w-96">
+          <div className="rounded-2xl border bg-card p-6">
+            <Skeleton className="h-5 w-36" />
+            <div className="mt-5 space-y-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex gap-3">
+                  <Skeleton className="aspect-3/4 w-12 shrink-0 rounded-lg" />
+                  <div className="flex-1 space-y-2 self-center">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-3 w-16" />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Skeleton className="mt-6 h-11 w-full rounded-md" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Fetches the shopper's cart and gates on login, then hands the buyable
  * lines to the form. Order placement itself is still simulated — the order
@@ -146,7 +191,7 @@ export function CheckoutView() {
     );
   }
   if (status === "loading" || (cartState !== "error" && !cart)) {
-    return <PanelLoading label="Loading checkout" />;
+    return <CheckoutSkeleton />;
   }
 
   const failed = !cart;
