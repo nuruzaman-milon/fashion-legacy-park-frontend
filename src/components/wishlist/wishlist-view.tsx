@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -11,30 +12,33 @@ import {
   Trash2Icon,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/components/auth/auth-provider";
+import { useShop } from "@/components/shop/shop-provider";
+import { PanelLoading, SignInPrompt } from "@/components/shared/auth-panel";
 import { Button } from "@/components/ui/button";
 import { RatingStars } from "@/components/product/rating-stars";
 import { ProductThumb } from "@/components/product/product-thumb";
-import { discountPercent, formatPrice } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { formatPrice } from "@/lib/format";
+import { ApiError, apiFetch } from "@/lib/api/client";
 import type { WishlistItem } from "@/lib/api/wishlist";
+import { cn } from "@/lib/utils";
 
 const ADDED_FEEDBACK_MS = 2000;
 
-function StockLine({ stock }: { stock: number }) {
-  if (stock === 0) {
+function StockLine({ item }: { item: WishlistItem }) {
+  if (!item.isPurchasable) {
+    return (
+      <span className="flex items-center gap-1.5 text-xs font-medium text-destructive">
+        <span className="size-1.5 rounded-full bg-destructive" />
+        No longer available
+      </span>
+    );
+  }
+  if (!item.isInStock) {
     return (
       <span className="flex items-center gap-1.5 text-xs font-medium text-destructive">
         <span className="size-1.5 rounded-full bg-destructive" />
         Out of stock
-      </span>
-    );
-  }
-  if (stock <= 5) {
-    return (
-      <span className="flex items-center gap-1.5 text-xs font-medium text-brand">
-        <span className="size-1.5 rounded-full bg-brand" />
-        Only {stock} left
       </span>
     );
   }
@@ -46,8 +50,13 @@ function StockLine({ stock }: { stock: number }) {
   );
 }
 
-export function WishlistView({ initialItems }: { initialItems: WishlistItem[] }) {
-  const [items, setItems] = React.useState(initialItems);
+export function WishlistView() {
+  const { status } = useAuth();
+  const shop = useShop();
+  const router = useRouter();
+  const items = shop.wishlist;
+  const [pendingId, setPendingId] = React.useState<string | null>(null);
+  const [actionError, setActionError] = React.useState<string | null>(null);
   const [addedIds, setAddedIds] = React.useState<Set<string>>(new Set());
   const timers = React.useRef<Map<string, number>>(new Map());
 
@@ -56,58 +65,138 @@ export function WishlistView({ initialItems }: { initialItems: WishlistItem[] })
     return () => pending.forEach((t) => window.clearTimeout(t));
   }, []);
 
-  const removeItem = (id: string) =>
-    setItems((current) => current.filter((item) => item.id !== id));
+  const showError = (error: unknown) =>
+    setActionError(
+      error instanceof ApiError
+        ? error.message
+        : "Something went wrong — please try again.",
+    );
 
-  const markAdded = (ids: string[]) => {
-    setAddedIds((current) => {
-      const next = new Set(current);
-      ids.forEach((id) => next.add(id));
-      return next;
-    });
-    ids.forEach((id) => {
-      window.clearTimeout(timers.current.get(id));
-      timers.current.set(
-        id,
-        window.setTimeout(() => {
-          setAddedIds((current) => {
-            const next = new Set(current);
-            next.delete(id);
-            return next;
-          });
-        }, ADDED_FEEDBACK_MS)
-      );
-    });
+  const markAdded = (id: string) => {
+    setAddedIds((current) => new Set(current).add(id));
+    window.clearTimeout(timers.current.get(id));
+    timers.current.set(
+      id,
+      window.setTimeout(() => {
+        setAddedIds((current) => {
+          const next = new Set(current);
+          next.delete(id);
+          return next;
+        });
+      }, ADDED_FEEDBACK_MS),
+    );
   };
 
-  const inStock = items.filter((item) => item.stock > 0);
-  const totalWorth = items.reduce((sum, item) => sum + item.price, 0);
+  // Optimistic via the provider — the row disappears instantly and comes
+  // back (with an error message) only if the backend refuses.
+  const removeItem = (item: WishlistItem) => {
+    setActionError(null);
+    shop.removeWishlistItem(item.productId).catch(showError);
+  };
+
+  /**
+   * The cart is variant-level and the wishlist product-level: a product with
+   * one variant goes straight in (and stays hearted); with several, the
+   * customer picks size or colour on the product page — guessing for them is
+   * how wrong sizes ship.
+   */
+  const addToCart = async (item: WishlistItem) => {
+    setPendingId(item.productId);
+    setActionError(null);
+    try {
+      const { variants } = await apiFetch<{ variants: { id: string }[] }>(
+        `/products/${encodeURIComponent(item.slug)}`,
+      );
+      if (variants.length === 1) {
+        // Confirm instantly; the provider's badge already moved. A backend
+        // refusal replaces the feedback with the error message.
+        markAdded(item.productId);
+        shop.addToCart(variants[0].id, 1).catch((error) => {
+          setAddedIds((current) => {
+            const next = new Set(current);
+            next.delete(item.productId);
+            return next;
+          });
+          showError(error);
+        });
+      } else {
+        router.push(`/products/${item.slug}`);
+      }
+    } catch (error) {
+      showError(error);
+    } finally {
+      setPendingId(null);
+    }
+  };
+
+  const header = (
+    <div>
+      <p className="text-xs font-semibold tracking-[0.16em] text-brand uppercase">
+        Wishlist
+      </p>
+      <h1 className="font-heading mt-1 text-3xl font-medium tracking-tight sm:text-4xl">
+        Your Wishlist
+      </h1>
+    </div>
+  );
+
+  if (
+    status === "loading" ||
+    (status === "authenticated" && shop.wishlistState !== "error" && !items)
+  ) {
+    return (
+      <div>
+        {header}
+        <PanelLoading label="Loading wishlist" />
+      </div>
+    );
+  }
+
+  if (status === "anonymous") {
+    return (
+      <div>
+        {header}
+        <SignInPrompt
+          icon={HeartIcon}
+          title="Sign in to see your wishlist"
+          copy="Tap the heart on any product to keep it here for later — your picks stay saved to your account, across devices."
+          nextPath="/wishlist"
+        />
+      </div>
+    );
+  }
+
+  if (!items) {
+    return (
+      <div>
+        {header}
+        <div className="mt-8 flex flex-col items-center rounded-2xl border border-dashed px-6 py-20 text-center">
+          <p className="font-heading text-xl font-medium">
+            Couldn’t load your wishlist
+          </p>
+          <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+            Something went wrong on our side. Give it another try.
+          </p>
+          <Button className="mt-6" onClick={shop.reloadWishlist}>
+            Try again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const totalWorth = items.reduce((sum, item) => sum + item.minPrice, 0);
 
   return (
     <div>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold tracking-[0.16em] text-brand uppercase">
-            Wishlist
-          </p>
-          <h1 className="font-heading mt-1 text-3xl font-medium tracking-tight sm:text-4xl">
-            Your Wishlist
-          </h1>
+          {header}
           <p className="mt-1.5 text-sm text-muted-foreground">
             {items.length} saved {items.length === 1 ? "item" : "items"}
             {items.length > 0 && <> · worth {formatPrice(totalWorth)}</>}
           </p>
         </div>
-        {inStock.length > 1 && (
-          <Button
-            variant="outline"
-            className="h-9"
-            onClick={() => markAdded(inStock.map((item) => item.id))}
-          >
-            <ShoppingBagIcon />
-            Add all to cart
-          </Button>
-        )}
       </div>
 
       {items.length === 0 ? (
@@ -129,17 +218,25 @@ export function WishlistView({ initialItems }: { initialItems: WishlistItem[] })
         </div>
       ) : (
         <>
-          <div className="mt-8 overflow-hidden rounded-2xl border bg-card">
+          {actionError && (
+            <p
+              role="alert"
+              className="mt-6 rounded-lg bg-destructive/10 px-3.5 py-2.5 text-sm text-destructive"
+            >
+              {actionError}
+            </p>
+          )}
+
+          <div className="mt-6 overflow-hidden rounded-2xl border bg-card">
             <ul className="divide-y">
               {items.map((item) => {
-                const outOfStock = item.stock === 0;
-                const hasDiscount =
-                  item.comparePrice !== null && item.comparePrice > item.price;
-                const added = addedIds.has(item.id);
+                const unbuyable = !item.isPurchasable || !item.isInStock;
+                const added = addedIds.has(item.productId);
+                const busy = pendingId !== null;
 
                 return (
                   <li
-                    key={item.id}
+                    key={item.productId}
                     className="flex gap-4 p-4 transition-colors hover:bg-muted/40 sm:gap-5 sm:p-5"
                   >
                     <Link
@@ -154,7 +251,7 @@ export function WishlistView({ initialItems }: { initialItems: WishlistItem[] })
                         sizes="96px"
                         className={cn(
                           "aspect-3/4 w-20 rounded-xl sm:w-24",
-                          outOfStock && "opacity-55 grayscale-25"
+                          unbuyable && "opacity-55 grayscale-25"
                         )}
                       />
                     </Link>
@@ -177,26 +274,19 @@ export function WishlistView({ initialItems }: { initialItems: WishlistItem[] })
                             rating={item.avgRating}
                             reviewCount={item.reviewCount}
                           />
-                          <StockLine stock={item.stock} />
+                          <StockLine item={item} />
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between gap-4 sm:w-40 sm:flex-col sm:items-end sm:justify-center sm:gap-1.5">
-                        <div className="flex items-baseline gap-2 sm:flex-col sm:items-end sm:gap-0.5">
-                          <span className="text-base font-semibold">
-                            {formatPrice(item.price)}
+                      <div className="flex items-center justify-between gap-4 sm:w-32 sm:flex-col sm:items-end sm:justify-center sm:gap-0.5">
+                        <span className="text-base font-semibold">
+                          {formatPrice(item.minPrice)}
+                        </span>
+                        {item.maxPrice > item.minPrice && (
+                          <span className="text-xs text-muted-foreground">
+                            up to {formatPrice(item.maxPrice)}
                           </span>
-                          {hasDiscount && (
-                            <span className="flex items-center gap-1.5">
-                              <span className="text-xs text-muted-foreground line-through">
-                                {formatPrice(item.comparePrice!)}
-                              </span>
-                              <Badge className="bg-brand/10 px-1.5 text-[10px] text-brand">
-                                −{discountPercent(item.price, item.comparePrice!)}%
-                              </Badge>
-                            </span>
-                          )}
-                        </div>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2 sm:shrink-0">
@@ -205,11 +295,11 @@ export function WishlistView({ initialItems }: { initialItems: WishlistItem[] })
                             "h-9 flex-1 sm:w-40 sm:flex-none",
                             added && "bg-brand text-brand-foreground hover:bg-brand"
                           )}
-                          disabled={outOfStock}
-                          onClick={() => markAdded([item.id])}
+                          disabled={unbuyable || busy}
+                          onClick={() => addToCart(item)}
                         >
-                          {outOfStock ? (
-                            "Out of Stock"
+                          {unbuyable ? (
+                            "Unavailable"
                           ) : added ? (
                             <>
                               <CheckIcon />
@@ -226,7 +316,8 @@ export function WishlistView({ initialItems }: { initialItems: WishlistItem[] })
                           variant="ghost"
                           size="icon"
                           aria-label={`Remove ${item.title} from wishlist`}
-                          onClick={() => removeItem(item.id)}
+                          disabled={busy}
+                          onClick={() => removeItem(item)}
                           className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                         >
                           <Trash2Icon className="size-4" />

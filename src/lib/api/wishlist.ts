@@ -1,51 +1,99 @@
-import { mockProducts } from "./mock/home-data";
+import { mapCart, type ApiCart, type Cart } from "./cart";
+import { apiFetch } from "./client";
 
 /**
- * Saved-for-later items for the current shopper. Mock-backed for now — the
- * body swaps to `fetch()` when the real backend lands (same shape as `cart.ts`).
+ * Wishlist for the current shopper — docs/cart.md. Product-level (a heart
+ * saves the product, not a variant) and login-required, so everything goes
+ * through the client-side `apiFetch`.
  */
 
-export interface WishlistItem {
+interface ApiWishlistEntry {
   id: string;
+  productId: string;
+  product: {
+    id: string;
+    name: string;
+    slug: string;
+    minPrice: string;
+    maxPrice: string;
+    avgRating: number;
+    reviewCount: number;
+    category: { name: string; slug: string };
+    images: { url: string; alt: string | null }[];
+  };
+  isPurchasable: boolean;
+  isInStock: boolean;
+}
+
+export interface WishlistItem {
   productId: string;
   slug: string;
   title: string;
   categoryName: string;
   image: string | null;
-  price: number;
-  comparePrice: number | null;
+  minPrice: number;
+  maxPrice: number;
   avgRating: number;
   reviewCount: number;
-  /** Live stock for the product — 0 renders the out-of-stock treatment. */
-  stock: number;
+  /** False when stock ran out — rendered greyed, never silently dropped. */
+  isInStock: boolean;
+  /** False when the product was withdrawn or its seller suspended. */
+  isPurchasable: boolean;
 }
 
-const ITEMS = [
-  { productId: "p2", stock: 26 },
-  { productId: "p6", stock: 22 },
-  { productId: "p12", stock: 3 },
-  { productId: "p9", stock: 0 },
-  { productId: "p8", stock: 30 },
-];
+/** Covers any realistic wishlist in one page. */
+const WISHLIST_LIMIT = 100;
+
+function mapEntry(entry: ApiWishlistEntry): WishlistItem {
+  return {
+    productId: entry.productId,
+    slug: entry.product.slug,
+    title: entry.product.name,
+    categoryName: entry.product.category.name,
+    image: entry.product.images[0]?.url ?? null,
+    minPrice: Number(entry.product.minPrice),
+    maxPrice: Number(entry.product.maxPrice),
+    avgRating: entry.product.avgRating,
+    reviewCount: entry.product.reviewCount,
+    isInStock: entry.isInStock,
+    isPurchasable: entry.isPurchasable,
+  };
+}
 
 export async function getWishlist(): Promise<WishlistItem[]> {
-  return ITEMS.flatMap((item, index) => {
-    const product = mockProducts.find((p) => p.id === item.productId);
-    if (!product) return [];
-    return [
-      {
-        id: `wl${index + 1}`,
-        productId: product.id,
-        slug: product.slug,
-        title: product.title,
-        categoryName: product.category.name,
-        image: product.image,
-        price: product.minPrice,
-        comparePrice: product.comparePrice,
-        avgRating: product.avgRating,
-        reviewCount: product.reviewCount,
-        stock: item.stock,
-      },
-    ];
-  });
+  const { items } = await apiFetch<{ items: ApiWishlistEntry[] }>(
+    `/wishlist?limit=${WISHLIST_LIMIT}`,
+  );
+  return items.map(mapEntry);
+}
+
+/** Heart icon — resolves to the resulting state. Idempotent server-side. */
+export async function toggleWishlist(productId: string): Promise<boolean> {
+  const { wishlisted } = await apiFetch<{ wishlisted: boolean }>(
+    `/wishlist/${productId}/toggle`,
+    { method: "POST" },
+  );
+  return wishlisted;
+}
+
+export async function removeFromWishlist(productId: string): Promise<void> {
+  await apiFetch(`/wishlist/${productId}`, { method: "DELETE" });
+}
+
+/**
+ * `variantId` is required — the wishlist is product-level, the cart is
+ * variant-level, and the backend refuses to guess a size or colour.
+ * Returns the updated cart; the wishlist entry is gone only if it succeeds.
+ */
+export async function moveWishlistItemToCart(
+  productId: string,
+  variantId: string,
+  quantity = 1,
+): Promise<Cart> {
+  return mapCart(
+    await apiFetch<ApiCart>(`/wishlist/${productId}/move-to-cart`, {
+      method: "POST",
+      body: { variantId, quantity },
+    }),
+  );
 }

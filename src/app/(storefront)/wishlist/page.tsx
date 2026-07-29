@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
 import { WishlistView } from "@/components/wishlist/wishlist-view";
-import { getWishlist } from "@/lib/api/wishlist";
 
 export const metadata: Metadata = {
   title: "Wishlist",
@@ -9,12 +8,11 @@ export const metadata: Metadata = {
     "Your saved styles at Fashion Legacy — keep favourites for later and add them to your cart when you're ready.",
 };
 
-export default async function WishlistPage() {
-  const items = await getWishlist();
-
+// Account-scoped, fetched client-side with the Bearer token (docs/cart.md).
+export default function WishlistPage() {
   return (
     <div className="mx-auto max-w-8xl px-4 py-8 sm:px-6 sm:py-10">
-      <WishlistView initialItems={items} />
+      <WishlistView />
     </div>
   );
 }

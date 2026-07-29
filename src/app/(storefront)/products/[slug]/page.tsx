@@ -68,34 +68,46 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
       <ProductView product={product} />
 
-      <Separator />
+      {/* Seed products may carry no long description or specifications. */}
+      {(product.description ||
+        Object.keys(product.specifications).length > 0) && (
+        <>
+          <Separator />
 
-      <section
-        aria-label="Product information"
-        className="grid gap-10 lg:grid-cols-[1.5fr_1fr]"
-      >
-        <div>
-          <h2 className="font-heading text-xl font-medium tracking-tight sm:text-2xl">
-            About this product
-          </h2>
-          <p className="mt-4 max-w-2xl text-sm leading-relaxed text-foreground/80 sm:text-base">
-            {product.description}
-          </p>
-        </div>
-        <div>
-          <h2 className="font-heading text-xl font-medium tracking-tight sm:text-2xl">
-            Specifications
-          </h2>
-          <dl className="mt-4 divide-y rounded-xl border bg-card">
-            {Object.entries(product.specifications).map(([key, value]) => (
-              <div key={key} className="flex gap-4 px-4 py-3 text-sm">
-                <dt className="w-28 shrink-0 text-muted-foreground">{key}</dt>
-                <dd className="font-medium">{value}</dd>
+          <section
+            aria-label="Product information"
+            className="grid gap-10 lg:grid-cols-[1.5fr_1fr]"
+          >
+            {product.description && (
+              <div>
+                <h2 className="font-heading text-xl font-medium tracking-tight sm:text-2xl">
+                  About this product
+                </h2>
+                <p className="mt-4 max-w-2xl text-sm leading-relaxed text-foreground/80 sm:text-base">
+                  {product.description}
+                </p>
               </div>
-            ))}
-          </dl>
-        </div>
-      </section>
+            )}
+            {Object.keys(product.specifications).length > 0 && (
+              <div>
+                <h2 className="font-heading text-xl font-medium tracking-tight sm:text-2xl">
+                  Specifications
+                </h2>
+                <dl className="mt-4 divide-y rounded-xl border bg-card">
+                  {Object.entries(product.specifications).map(([key, value]) => (
+                    <div key={key} className="flex gap-4 px-4 py-3 text-sm">
+                      <dt className="w-28 shrink-0 text-muted-foreground">
+                        {key}
+                      </dt>
+                      <dd className="font-medium">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
+          </section>
+        </>
+      )}
 
       <Separator />
 

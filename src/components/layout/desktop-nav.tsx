@@ -70,13 +70,13 @@ function MegaPanel({ label, href, panel }: { label: string; href: string; panel:
           </div>
         ))}
 
-        {panel.newArrivals.length > 0 && (
+        {panel.recommended.length > 0 && (
           <div className="ml-auto hidden w-80 shrink-0 border-l border-border pl-8 lg:block">
             <p className="text-sm font-semibold tracking-[0.08em] text-brand uppercase">
-              New Arrivals
+              Our Recommendation
             </p>
             <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-4">
-              {panel.newArrivals.map((product) => (
+              {panel.recommended.map((product) => (
                 <NavigationMenuLink
                   key={product.id}
                   closeOnClick

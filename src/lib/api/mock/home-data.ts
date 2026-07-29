@@ -1,46 +1,10 @@
-import type {
-  CategorySummary,
-  HomeBanner,
-  ProductListItem,
-} from "@/types/catalog";
+import type { ProductListItem } from "@/types/catalog";
 
 /**
- * Placeholder data shaped exactly like the future API responses.
- * Delete this folder once the backend endpoints exist — nothing outside
- * `src/lib/api` imports from it.
+ * Last of the mock data: cart & wishlist (`cart.ts`, `wishlist.ts`) still
+ * assemble their lines from these products. Delete this folder when those
+ * two move to the real backend (docs/cart.md).
  */
-
-export const mockBanner: HomeBanner = {
-  id: "banner-1",
-  eyebrow: "Winter Collection · 2026",
-  title: "This winter, wear your legacy",
-  subtitle:
-    "Sherpa-lined corduroy, brushed flannel and heavyweight fleece — cut for cold mornings and made to outlast the season.",
-  ctaLabel: "Shop winter collection",
-  href: "/products?collection=winter-2026",
-  image: "/images/winter-collections/premium-jacket.jpeg",
-  imageAlt: "Sherpa-lined corduroy jacket in charcoal",
-  supportingImages: [
-    {
-      src: "/images/winter-collections/jacket.jpeg",
-      alt: "Quarter-zip fleece pullover in taupe",
-    },
-    {
-      src: "/images/winter-collections/mens-shirt.jpeg",
-      alt: "Brushed flannel shirt in dark plaid",
-    },
-  ],
-};
-
-export const mockCategories: CategorySummary[] = [
-  { id: "c1", name: "Women's Wear", slug: "womens-wear", image: "/images/categories/womens-wear.svg", productCount: 148 },
-  { id: "c2", name: "Men's Wear", slug: "mens-wear", image: "/images/categories/mens-wear.svg", productCount: 112 },
-  { id: "c3", name: "Sarees & Ethnic", slug: "sarees-ethnic", image: "/images/categories/sarees-ethnic.svg", productCount: 64 },
-  { id: "c4", name: "Kids", slug: "kids", image: "/images/categories/kids.svg", productCount: 87 },
-  { id: "c5", name: "Footwear", slug: "footwear", image: "/images/categories/footwear.svg", productCount: 53 },
-  { id: "c6", name: "Accessories", slug: "accessories", image: "/images/categories/accessories.svg", productCount: 76 },
-  { id: "c7", name: "Cosmetics", slug: "cosmetics", image: "/images/categories/cosmetics.svg", productCount: 58 },
-];
 
 const womens = { name: "Women's Wear", slug: "womens-wear" };
 const mens = { name: "Men's Wear", slug: "mens-wear" };
@@ -241,15 +205,3 @@ export const mockProducts: Omit<ProductListItem, "isNew">[] = [
     publishedAt: "2026-07-10T00:00:00.000Z",
   },
 ];
-
-/** Flash-sale entries reference products by id, like `FlashSaleItem` rows. */
-export const mockFlashSaleItems: Record<
-  string,
-  { flashPrice: number; quantityLimit: number | null; soldCount: number }
-> = {
-  p2: { flashPrice: 2790, quantityLimit: 50, soldCount: 34 },
-  p5: { flashPrice: 490, quantityLimit: 100, soldCount: 62 },
-  p7: { flashPrice: 3590, quantityLimit: 40, soldCount: 12 },
-  p10: { flashPrice: 990, quantityLimit: 80, soldCount: 45 },
-  p12: { flashPrice: 4290, quantityLimit: 30, soldCount: 21 },
-};

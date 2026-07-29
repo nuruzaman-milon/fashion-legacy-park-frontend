@@ -1,8 +1,9 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { HeartIcon, SearchIcon, ShoppingBagIcon } from "lucide-react";
+import { SearchIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { CartButton, WishlistButton } from "@/components/layout/header-shop-buttons";
 import { DesktopNav, DesktopNavFallback } from "@/components/layout/desktop-nav";
 import { SearchBox } from "@/components/layout/search-box";
 import { Logo } from "@/components/layout/logo";
@@ -33,7 +34,7 @@ export async function SiteHeader() {
         }}
       >
         <div className="mx-auto flex h-16 max-w-8xl items-center gap-2 px-4 sm:px-6 md:h-20">
-          <MobileNav />
+          <MobileNav items={navItems} />
 
           <Logo priority className="h-12 md:h-16" />
 
@@ -54,24 +55,8 @@ export async function SiteHeader() {
             >
               <SearchIcon className="size-5" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={headerIconHover}
-              aria-label="Wishlist"
-              render={<Link href="/wishlist" />}
-            >
-              <HeartIcon className="size-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={headerIconHover}
-              aria-label="Cart"
-              render={<Link href="/cart" />}
-            >
-              <ShoppingBagIcon className="size-5" />
-            </Button>
+            <WishlistButton className={headerIconHover} />
+            <CartButton className={headerIconHover} />
             <UserMenu className={headerIconHover} />
           </div>
         </div>

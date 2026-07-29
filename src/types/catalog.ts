@@ -13,6 +13,18 @@ export interface CategorySummary {
   productCount: number;
 }
 
+/** One node of `GET /categories/tree` — active categories only, max 3 levels. */
+export interface CategoryTreeNode {
+  id: string;
+  name: string;
+  slug: string;
+  icon: string | null;
+  image: string | null;
+  sortOrder: number;
+  productCount: number;
+  children: CategoryTreeNode[];
+}
+
 export interface FlashSaleInfo {
   /** Resolved sale price for the cheapest variant. */
   flashPrice: number;
@@ -92,6 +104,8 @@ export interface ProductDetail extends ProductListItem {
   options: ProductOptionGroup[];
   variants: ProductVariantInfo[];
   images: ProductImageInfo[];
+  /** Option values with purchasable stock — the picker greys out the rest. */
+  inStockValueIds: string[];
   reviews: ProductReview[];
   lowStockThreshold: number;
 }
@@ -118,7 +132,6 @@ export interface HomeData {
     endsAt: string;
     items: ProductListItem[];
   } | null;
-  featured: ProductListItem[];
   newArrivals: ProductListItem[];
   bestSellers: ProductListItem[];
 }

@@ -54,6 +54,12 @@ export function ReviewsSection({ product }: { product: ProductDetail }) {
           </ul>
         </div>
 
+        {product.reviews.length === 0 ? (
+          <p className="self-center rounded-xl border border-dashed px-6 py-10 text-center text-sm text-muted-foreground">
+            Written reviews will appear here soon — the rating summary comes
+            from verified purchases.
+          </p>
+        ) : (
         <ul className="space-y-5">
           {product.reviews.map((review) => (
             <li key={review.id} className="rounded-xl border bg-card p-5">
@@ -113,6 +119,7 @@ export function ReviewsSection({ product }: { product: ProductDetail }) {
             Showing {product.reviews.length} of {product.reviewCount} reviews
           </li>
         </ul>
+        )}
       </div>
     </section>
   );

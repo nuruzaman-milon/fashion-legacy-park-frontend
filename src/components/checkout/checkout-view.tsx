@@ -24,6 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAuth } from "@/components/auth/auth-provider";
+import { useShop } from "@/components/shop/shop-provider";
+import { PanelLoading, SignInPrompt } from "@/components/shared/auth-panel";
 import { ProductThumb } from "@/components/product/product-thumb";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -123,7 +126,54 @@ function SectionHeading({ step, title }: { step: number; title: string }) {
   );
 }
 
-export function CheckoutView({ lines }: { lines: CartLine[] }) {
+/**
+ * Fetches the shopper's cart and gates on login, then hands the buyable
+ * lines to the form. Order placement itself is still simulated — the order
+ * module is the next backend phase.
+ */
+export function CheckoutView() {
+  const { status } = useAuth();
+  const { cart, cartState } = useShop();
+
+  if (status === "anonymous") {
+    return (
+      <SignInPrompt
+        icon={CreditCardIcon}
+        title="Sign in to check out"
+        copy="Your cart is saved to your account. Sign in to place your order."
+        nextPath="/checkout"
+      />
+    );
+  }
+  if (status === "loading" || (cartState !== "error" && !cart)) {
+    return <PanelLoading label="Loading checkout" />;
+  }
+
+  const failed = !cart;
+  const lines = cart?.lines.filter((line) => line.isAvailable) ?? [];
+  if (failed || lines.length === 0) {
+    return (
+      <div className="flex flex-col items-center rounded-2xl border border-dashed px-6 py-20 text-center">
+        <p className="font-heading text-xl font-medium">
+          {failed ? "Couldn’t load your cart" : "Nothing to check out"}
+        </p>
+        <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+          {failed
+            ? "Something went wrong on our side. Head back to your cart and try again."
+            : "Your cart has no available items — add something first."}
+        </p>
+        <Button className="mt-6" render={<Link href={failed ? "/cart" : "/products"} />}>
+          {failed ? "Back to cart" : "Start shopping"}
+          <ArrowRightIcon />
+        </Button>
+      </div>
+    );
+  }
+
+  return <CheckoutForm lines={lines} />;
+}
+
+function CheckoutForm({ lines }: { lines: CartLine[] }) {
   const [name, setName] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [email, setEmail] = React.useState("");

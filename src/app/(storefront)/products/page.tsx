@@ -15,6 +15,7 @@ import { ScrollArea } from "@/components/shared/scroll-area";
 import { formatPrice } from "@/lib/format";
 import {
   getCategories,
+  getCategory,
   getProducts,
   type ProductSort,
 } from "@/lib/api/products";
@@ -71,7 +72,9 @@ export default async function ProductsPage({
     ? (params.sort as ProductSort)
     : undefined;
 
-  const [{ products, total }, categories] = await Promise.all([
+  // The sidebar lists root categories only, but megamenu links carry any
+  // depth of slug — the active category is resolved by its own endpoint.
+  const [{ products, total }, categories, activeCategory] = await Promise.all([
     getProducts({
       category: params.category,
       minPrice: toNumber(params.minPrice),
@@ -81,9 +84,8 @@ export default async function ProductsPage({
       sort,
     }),
     getCategories(),
+    params.category ? getCategory(params.category) : null,
   ]);
-
-  const activeCategory = categories.find((c) => c.slug === params.category);
 
   const chips: { label: string; href: string }[] = [];
   if (activeCategory) {

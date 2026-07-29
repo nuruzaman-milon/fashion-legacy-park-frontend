@@ -21,26 +21,28 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { navMenuConfig, type NavMenuItemConfig } from "@/config/nav-menu";
 import { siteConfig } from "@/config/site";
+import type { ResolvedNavItem } from "@/lib/api/nav";
 import { cn } from "@/lib/utils";
 
-type MegaItem = Extract<NavMenuItemConfig, { type: "mega" }>;
+type MegaItem = ResolvedNavItem & {
+  panel: NonNullable<ResolvedNavItem["panel"]>;
+};
 
 /**
  * Two-level drill-down menu: the root screen lists top-level entries only;
  * tapping a category slides to a detail screen with its links as compact
  * chips, grouped by section. Keeps every screen short and scannable.
  */
-export function MobileNav() {
+export function MobileNav({ items }: { items: ResolvedNavItem[] }) {
   const [open, setOpen] = React.useState(false);
   const [view, setView] = React.useState<string | null>(null);
   const reduceMotion = useReducedMotion();
   const { status, logout } = useAuth();
 
   const close = () => setOpen(false);
-  const activeItem = navMenuConfig.find(
-    (item): item is MegaItem => item.type === "mega" && item.label === view
+  const activeItem = items.find(
+    (item): item is MegaItem => item.panel !== undefined && item.label === view
   );
 
   const slide = (from: number) =>
@@ -102,7 +104,7 @@ export function MobileNav() {
                   <ArrowRightIcon className="size-4 text-brand" />
                 </Link>
 
-                {activeItem.columns.map((column) => (
+                {activeItem.panel.columns.map((column) => (
                   <div key={column.title} className="mt-6">
                     <p className="text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
                       {column.title}
@@ -130,8 +132,18 @@ export function MobileNav() {
                 className="h-full overflow-y-auto px-2 pb-6"
               >
                 <nav className="flex flex-col">
-                  {navMenuConfig.map((item) =>
-                    item.type === "link" ? (
+                  {items.map((item) =>
+                    item.panel ? (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={() => setView(item.label)}
+                        className="flex items-center justify-between rounded-lg px-2 py-3 text-base font-medium text-foreground hover:bg-muted"
+                      >
+                        {item.label}
+                        <ChevronRightIcon className="size-4 text-muted-foreground" />
+                      </button>
+                    ) : (
                       <Link
                         key={item.label}
                         href={item.href}
@@ -143,16 +155,6 @@ export function MobileNav() {
                       >
                         {item.label}
                       </Link>
-                    ) : (
-                      <button
-                        key={item.label}
-                        type="button"
-                        onClick={() => setView(item.label)}
-                        className="flex items-center justify-between rounded-lg px-2 py-3 text-base font-medium text-foreground hover:bg-muted"
-                      >
-                        {item.label}
-                        <ChevronRightIcon className="size-4 text-muted-foreground" />
-                      </button>
                     )
                   )}
                 </nav>

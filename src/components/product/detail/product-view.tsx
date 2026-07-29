@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
 import {
+  CheckIcon,
   HandCoinsIcon,
   HeartIcon,
   MinusIcon,
@@ -15,13 +17,18 @@ import {
   ZoomOutIcon,
 } from "lucide-react";
 
+import { useAuth } from "@/components/auth/auth-provider";
+import { useShop } from "@/components/shop/shop-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { RatingStars } from "@/components/product/rating-stars";
+import { ApiError } from "@/lib/api/client";
 import { discountPercent, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ProductDetail } from "@/types/catalog";
+
+const ADDED_FEEDBACK_MS = 2000;
 
 export function ProductView({ product }: { product: ProductDetail }) {
   // One selected value per option group, defaulting to the first value.
@@ -32,10 +39,13 @@ export function ProductView({ product }: { product: ProductDetail }) {
   const [quantity, setQuantity] = React.useState(1);
 
   const selectedIds = Object.values(selected);
-  const variant =
-    product.variants.find((v) =>
-      v.optionValueIds.every((id) => selectedIds.includes(id))
-    ) ?? product.variants[0];
+  // A combination without a variant (the backend only creates the ones the
+  // seller generated) sells as out of stock; the default variant stands in
+  // for price display only.
+  const matched = product.variants.find((v) =>
+    v.optionValueIds.every((id) => selectedIds.includes(id))
+  );
+  const variant = matched ?? product.variants[0];
 
   // The gallery always shows every shot; picking a colour jumps the main
   // image to that colour's photo (thumbnails stay browsable).
@@ -49,9 +59,77 @@ export function ProductView({ product }: { product: ProductDetail }) {
   const compareAt = sale ? variant.price : variant.comparePrice;
   const hasDiscount = compareAt !== null && compareAt > price;
 
-  const outOfStock = variant.stock === 0;
+  const outOfStock = !matched || matched.stock === 0;
   const lowStock =
     !outOfStock && variant.stock <= product.lowStockThreshold;
+
+  // Cart & wishlist are login-only (docs/cart.md) — anonymous clicks go to
+  // /login and come back here via ?next=. Heart state and adds go through
+  // the shared shop provider: local state flips instantly, the backend
+  // syncs behind it, and failures roll back with a message.
+  const { status } = useAuth();
+  const shop = useShop();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [cartState, setCartState] = React.useState<
+    "idle" | "busy" | "added"
+  >("idle");
+  const [actionError, setActionError] = React.useState<string | null>(null);
+  const addedTimer = React.useRef<number | undefined>(undefined);
+
+  React.useEffect(() => () => window.clearTimeout(addedTimer.current), []);
+
+  const hearted = status === "authenticated" && shop.isWishlisted(product.id);
+
+  const requireLogin = () => {
+    if (status === "authenticated") return false;
+    router.push(`/login?next=${encodeURIComponent(pathname)}`);
+    return true;
+  };
+
+  const showError = (error: unknown) =>
+    setActionError(
+      error instanceof ApiError
+        ? error.message
+        : "Something went wrong — please try again.",
+    );
+
+  const handleAddToCart = async (thenCheckout: boolean) => {
+    if (requireLogin() || !matched) return;
+    setActionError(null);
+    if (thenCheckout) {
+      // Navigating to checkout needs the confirmed cart — wait for it.
+      setCartState("busy");
+      try {
+        await shop.addToCart(matched.id, quantity);
+        router.push("/checkout");
+        return;
+      } catch (error) {
+        showError(error);
+      }
+      setCartState("idle");
+      return;
+    }
+    // Optimistic: confirm instantly, roll back to an error if the backend
+    // refuses (e.g. someone else took the last unit).
+    setCartState("added");
+    addedTimer.current = window.setTimeout(
+      () => setCartState("idle"),
+      ADDED_FEEDBACK_MS,
+    );
+    shop.addToCart(matched.id, quantity).catch((error) => {
+      window.clearTimeout(addedTimer.current);
+      setCartState("idle");
+      showError(error);
+    });
+  };
+
+  const handleToggleWishlist = () => {
+    if (requireLogin()) return;
+    setActionError(null);
+    // The provider flips the heart immediately and restores it on failure.
+    shop.toggleWishlist(product.id).catch(showError);
+  };
 
   const selectValue = (groupId: string, valueId: string) => {
     setSelected((s) => ({ ...s, [groupId]: valueId }));
@@ -179,16 +257,18 @@ export function ProductView({ product }: { product: ProductDetail }) {
           style={{ touchAction: touchZoomed ? "none" : "manipulation" }}
           className="group/zoom relative aspect-3/4 min-w-0 flex-1 cursor-zoom-in overflow-hidden rounded-2xl bg-muted lg:self-start"
         >
-          <Image
-            key={activeImage.src}
-            ref={zoomImgRef}
-            src={activeImage.src}
-            alt={activeImage.alt}
-            fill
-            priority
-            sizes="(min-width: 1024px) 45vw, 100vw"
-            className="object-cover transition-transform duration-200 ease-out"
-          />
+          {activeImage && (
+            <Image
+              key={activeImage.src}
+              ref={zoomImgRef}
+              src={activeImage.src}
+              alt={activeImage.alt}
+              fill
+              priority
+              sizes="(min-width: 1024px) 45vw, 100vw"
+              className="object-cover transition-transform duration-200 ease-out"
+            />
+          )}
           <div className="absolute top-3 left-3 flex flex-col items-start gap-1.5">
             {hasDiscount && (
               <Badge className="bg-brand text-brand-foreground">
@@ -277,12 +357,18 @@ export function ProductView({ product }: { product: ProductDetail }) {
                   )}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {group.values.map((value) =>
-                    group.displayType === "SWATCH" ? (
+                  {group.values.map((value) => {
+                    // Muted when no variant with this value has stock left
+                    // (`inStockValueIds`, docs API-HOMEPAGE.md §7). Still
+                    // clickable — the selection then reads "Out of stock".
+                    const soldOut = !product.inStockValueIds.includes(value.id);
+                    return group.displayType === "SWATCH" ? (
                       <button
                         key={value.id}
                         type="button"
-                        title={value.label}
+                        title={
+                          soldOut ? `${value.label} — out of stock` : value.label
+                        }
                         aria-label={`${group.name}: ${value.label}`}
                         aria-current={selected[group.id] === value.id}
                         onClick={() => selectValue(group.id, value.id)}
@@ -290,7 +376,8 @@ export function ProductView({ product }: { product: ProductDetail }) {
                           "size-9 rounded-full border-2 transition-all",
                           selected[group.id] === value.id
                             ? "border-brand ring-2 ring-brand/30"
-                            : "border-border hover:border-foreground/40"
+                            : "border-border hover:border-foreground/40",
+                          soldOut && "opacity-40"
                         )}
                         style={{ background: value.hexColor ?? undefined }}
                       />
@@ -304,13 +391,14 @@ export function ProductView({ product }: { product: ProductDetail }) {
                           "h-9 min-w-11 rounded-lg border px-3 text-sm font-medium transition-all",
                           selected[group.id] === value.id
                             ? "border-brand bg-brand/10 text-brand"
-                            : "border-border hover:border-foreground/40"
+                            : "border-border hover:border-foreground/40",
+                          soldOut && "text-muted-foreground line-through opacity-60"
                         )}
                       >
                         {value.label}
                       </button>
-                    )
-                  )}
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -358,16 +446,31 @@ export function ProductView({ product }: { product: ProductDetail }) {
           <div className="flex flex-wrap items-center gap-3">
             <Button
               size="lg"
-              className="h-11 flex-1 px-6 text-base sm:flex-none"
-              disabled={outOfStock}
+              className={cn(
+                "h-11 flex-1 px-6 text-base sm:flex-none",
+                cartState === "added" &&
+                  "bg-brand text-brand-foreground hover:bg-brand"
+              )}
+              disabled={outOfStock || cartState === "busy"}
+              onClick={() => handleAddToCart(false)}
             >
-              <ShoppingBagIcon />
-              Add to Cart
+              {cartState === "added" ? (
+                <>
+                  <CheckIcon />
+                  Added to Cart
+                </>
+              ) : (
+                <>
+                  <ShoppingBagIcon />
+                  Add to Cart
+                </>
+              )}
             </Button>
             <Button
               size="lg"
               className="h-11 flex-1 bg-brand px-6 text-base text-brand-foreground hover:bg-brand/85 sm:flex-none"
-              disabled={outOfStock}
+              disabled={outOfStock || cartState === "busy"}
+              onClick={() => handleAddToCart(true)}
             >
               <ZapIcon />
               Buy Now
@@ -375,12 +478,19 @@ export function ProductView({ product }: { product: ProductDetail }) {
             <Button
               size="lg"
               variant="outline"
-              className="size-11"
-              aria-label="Add to wishlist"
+              className={cn("size-11", hearted && "text-brand")}
+              aria-label={hearted ? "Remove from wishlist" : "Add to wishlist"}
+              aria-pressed={hearted}
+              onClick={handleToggleWishlist}
             >
-              <HeartIcon />
+              <HeartIcon className={cn(hearted && "fill-current")} />
             </Button>
           </div>
+          {actionError && (
+            <p role="alert" className="text-sm text-destructive">
+              {actionError}
+            </p>
+          )}
 
           <p className="text-xs text-muted-foreground">SKU: {variant.sku}</p>
         </div>

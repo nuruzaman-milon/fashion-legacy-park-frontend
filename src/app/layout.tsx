@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Geist, Geist_Mono } from "next/font/google";
 
 import { AuthProvider } from "@/components/auth/auth-provider";
+import { ShopProvider } from "@/components/shop/shop-provider";
 import { siteConfig } from "@/config/site";
 
 import "./globals.css";
@@ -41,7 +42,9 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <ShopProvider>{children}</ShopProvider>
+        </AuthProvider>
       </body>
     </html>
   );
