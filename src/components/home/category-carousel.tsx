@@ -28,6 +28,11 @@ export function CategoryCarousel({
               className="aspect-4/5 rounded-xl transition-transform duration-300 group-hover:scale-[1.02]"
             />
             <div className="mt-2.5">
+              {category.rootName && (
+                <p className="text-[10px] font-semibold tracking-[0.14em] text-brand uppercase">
+                  {category.rootName}
+                </p>
+              )}
               <h3 className="text-sm font-semibold">
                 <Link
                   href={`/products?category=${category.slug}`}

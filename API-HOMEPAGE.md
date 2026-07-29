@@ -110,12 +110,32 @@ fallback (keep the static one) until a banner is created via the admin panel.
 }
 ```
 
-## 3. Category strip — `GET /categories/tree`
+## 3. Category strip — `GET /categories/featured`
 
-Same node shape as `/categories/menu` but without `recommendedProducts`. Use
-the top-level array for the homepage category cards: `name`, `slug`, `image`
-(null in seed — cards should fall back to a local placeholder), and
-`productCount` (aggregated over the subtree, visible products only).
+Admin-curated "Shop by category" tiles, in curated order. Deliberately
+sub-categories, not roots — the roots already live in the navbar.
+
+```json
+{
+  "data": [
+    {
+      "id": "…", "name": "Sarees & Ethnic", "slug": "sarees-ethnic",
+      "icon": null, "image": "https://picsum.photos/seed/sarees-ethnic/600/750",
+      "rootName": "Women",
+      "productCount": 2, "homeSortOrder": 0
+    }
+  ]
+}
+```
+
+- **Curation**: `Category.showOnHome` + `homeSortOrder`, set via
+  `PATCH /admin/categories/:id`. Seeded by `prisma/seed-featured.js` (8 tiles).
+- **`rootName`** is the top-level ancestor ("Women", "Men", …) — label tiles
+  with it, since both Women and Men have a "Clothing"/"Sneakers".
+- `productCount` aggregates over the subtree, visible products only. A
+  category under a deactivated parent drops out, same rule as the tree.
+- **Empty array** until an admin curates — fall back to the top level of
+  `GET /categories/tree` (same fields minus `rootName`).
 
 ## 4. Flash sale — `GET /flash-sales/active`
 

@@ -11,6 +11,11 @@ export interface CategorySummary {
   slug: string;
   image: string | null;
   productCount: number;
+  /**
+   * Top-level ancestor ("Women", "Men", …) for curated homepage tiles —
+   * disambiguates same-named leaves. Absent/null on root categories.
+   */
+  rootName?: string | null;
 }
 
 /** One node of `GET /categories/tree` — active categories only, max 3 levels. */

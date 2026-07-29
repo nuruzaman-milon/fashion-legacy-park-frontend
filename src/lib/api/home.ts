@@ -100,8 +100,35 @@ async function getBanner(): Promise<HomeBanner> {
   }
 }
 
+interface ApiFeaturedCategory {
+  id: string;
+  name: string;
+  slug: string;
+  image: string | null;
+  rootName: string | null;
+  productCount: number;
+}
+
+/**
+ * Admin-curated "Shop by category" tiles (`GET /categories/featured`) —
+ * sub-categories the roots in the navbar don't already cover. Falls back to
+ * the root tree until an admin has curated anything.
+ */
 async function getCategoryStrip(): Promise<CategorySummary[]> {
   try {
+    const featured = await publicApiFetch<ApiFeaturedCategory[]>(
+      "/categories/featured",
+    );
+    if (featured.length > 0) {
+      return featured.map(({ id, name, slug, image, rootName, productCount }) => ({
+        id,
+        name,
+        slug,
+        image,
+        rootName,
+        productCount,
+      }));
+    }
     const tree = await publicApiFetch<CategoryTreeNode[]>("/categories/tree");
     return tree.map(({ id, name, slug, image, productCount }) => ({
       id,
