@@ -1,0 +1,469 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import * as z from "zod";
+
+import { ProductStatusBadge } from "@/components/admin/products/product-status-badge";
+import { FieldError } from "@/components/auth/field-error";
+import { FormAlert } from "@/components/auth/form-alert";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import type { AdminProductDetail, ProductStatus } from "@/types/admin";
+
+/** Mirrors the backend's product create/update schema. */
+const productSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, "At least 2 characters")
+    .max(200, "At most 200 characters"),
+  slug: z
+    .string()
+    .trim()
+    .max(120, "At most 120 characters")
+    .regex(/^[\p{L}\p{N}-]+$/u, "Only letters, numbers and dashes")
+    .optional()
+    .or(z.literal("")),
+  shortDescription: z.string().trim().max(500, "At most 500 characters"),
+  description: z.string().trim().max(20000, "At most 20,000 characters"),
+  videoUrl: z
+    .union([z.literal(""), z.url("Enter a full URL, e.g. https://…")])
+    .optional(),
+  categoryId: z.string().min(1, "Pick a category"),
+  tags: z.array(z.string()).max(30, "At most 30 tags"),
+  metaTitle: z.string().trim().max(160, "At most 160 characters"),
+  metaDescription: z.string().trim().max(320, "At most 320 characters"),
+  metaKeywords: z.string().trim().max(255, "At most 255 characters"),
+});
+
+const NONE = "__none__";
+
+const STATUS_OPTIONS: { value: ProductStatus; label: string }[] = [
+  { value: "DRAFT", label: "Draft" },
+  { value: "PENDING_APPROVAL", label: "Pending approval" },
+  { value: "ACTIVE", label: "Active" },
+  { value: "INACTIVE", label: "Inactive" },
+  { value: "REJECTED", label: "Rejected" },
+];
+
+interface FormState {
+  fieldErrors?: Record<string, string[]>;
+  saved?: boolean;
+}
+
+export function ProductForm({
+  initial,
+  categories,
+  brands,
+}: {
+  initial?: AdminProductDetail;
+  /** Leaf-first flat list for the category picker. */
+  categories: { id: string; name: string }[];
+  brands: { id: string; name: string }[];
+}) {
+  // Controlled throughout — a failed validation never wipes the edits.
+  const [values, setValues] = React.useState(() => ({
+    name: initial?.name ?? "",
+    slug: initial?.slug ?? "",
+    shortDescription: initial?.shortDescription ?? "",
+    description: initial?.description ?? "",
+    videoUrl: initial?.videoUrl ?? "",
+    categoryId: initial?.category.id ?? "",
+    brandId: initial?.brand?.id ?? null,
+    isFeatured: initial?.isFeatured ?? false,
+    tags: (initial?.tags ?? []).join(", "),
+    status: initial?.status ?? ("DRAFT" as ProductStatus),
+    rejectionReason: initial?.rejectionReason ?? "",
+    metaTitle: initial?.metaTitle ?? "",
+    metaDescription: initial?.metaDescription ?? "",
+    metaKeywords: initial?.metaKeywords ?? "",
+  }));
+
+  const set = <K extends keyof typeof values>(
+    key: K,
+    value: (typeof values)[K],
+  ) => setValues((v) => ({ ...v, [key]: value }));
+
+  const categoryOptions = React.useMemo(
+    () => [
+      { value: "", label: "Pick a category…" },
+      ...categories.map((c) => ({ value: c.id, label: c.name })),
+    ],
+    [categories],
+  );
+  const brandOptions = React.useMemo(
+    () => [
+      { value: NONE, label: "No brand" },
+      ...brands.map((b) => ({ value: b.id, label: b.name })),
+    ],
+    [brands],
+  );
+
+  const [state, formAction, pending] = React.useActionState<
+    FormState | undefined,
+    FormData
+  >(async () => {
+    const parsed = productSchema.safeParse({
+      ...values,
+      tags: values.tags
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+    });
+    if (!parsed.success) {
+      return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
+    }
+    // Design preview — POST/PATCH /admin/products lands here.
+    return { saved: true };
+  }, undefined);
+
+  return (
+    <form
+      action={formAction}
+      className="grid items-start gap-6 lg:grid-cols-[1fr_18rem]"
+    >
+      <div className="flex min-w-0 flex-col gap-6">
+        {state?.saved && (
+          <FormAlert tone="success">
+            Looks good — “{values.name}” passed validation. Saving activates
+            once the products API is wired up.
+          </FormAlert>
+        )}
+        {!initial && (
+          <FormAlert tone="info">
+            New products are created as drafts. Variants and photos are added
+            after the first save.
+          </FormAlert>
+        )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Details</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <label htmlFor="prod-name" className="text-sm font-medium">
+                Name
+              </label>
+              <Input
+                id="prod-name"
+                required
+                className="h-10"
+                value={values.name}
+                onChange={(e) => set("name", e.target.value)}
+              />
+              <FieldError messages={state?.fieldErrors?.name} />
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="prod-slug" className="text-sm font-medium">
+                Slug{" "}
+                <span className="font-normal text-muted-foreground">
+                  (optional)
+                </span>
+              </label>
+              <Input
+                id="prod-slug"
+                className="h-10 font-mono text-sm"
+                placeholder="auto-generated"
+                value={values.slug}
+                onChange={(e) => set("slug", e.target.value)}
+              />
+              <FieldError messages={state?.fieldErrors?.slug} />
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="prod-short" className="text-sm font-medium">
+                Short description{" "}
+                <span className="font-normal text-muted-foreground">
+                  ({values.shortDescription.length}/500)
+                </span>
+              </label>
+              <Textarea
+                id="prod-short"
+                className="min-h-16"
+                value={values.shortDescription}
+                onChange={(e) => set("shortDescription", e.target.value)}
+              />
+              <FieldError messages={state?.fieldErrors?.shortDescription} />
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="prod-description" className="text-sm font-medium">
+                Description
+              </label>
+              <Textarea
+                id="prod-description"
+                className="min-h-32"
+                value={values.description}
+                onChange={(e) => set("description", e.target.value)}
+              />
+              <FieldError messages={state?.fieldErrors?.description} />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label htmlFor="prod-tags" className="text-sm font-medium">
+                  Tags
+                </label>
+                <Input
+                  id="prod-tags"
+                  className="h-10"
+                  placeholder="party, gown, occasion wear"
+                  value={values.tags}
+                  onChange={(e) => set("tags", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Comma-separated, up to 30.
+                </p>
+                <FieldError messages={state?.fieldErrors?.tags} />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="prod-video" className="text-sm font-medium">
+                  Video URL{" "}
+                  <span className="font-normal text-muted-foreground">
+                    (optional)
+                  </span>
+                </label>
+                <Input
+                  id="prod-video"
+                  type="url"
+                  className="h-10"
+                  placeholder="https://youtube.com/…"
+                  value={values.videoUrl}
+                  onChange={(e) => set("videoUrl", e.target.value)}
+                />
+                <FieldError messages={state?.fieldErrors?.videoUrl} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>SEO</CardTitle>
+            <CardDescription>
+              Optional overrides for search engines.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <label htmlFor="prod-meta-title" className="text-sm font-medium">
+                Meta title{" "}
+                <span className="font-normal text-muted-foreground">
+                  ({values.metaTitle.length}/160)
+                </span>
+              </label>
+              <Input
+                id="prod-meta-title"
+                className="h-10"
+                value={values.metaTitle}
+                onChange={(e) => set("metaTitle", e.target.value)}
+              />
+              <FieldError messages={state?.fieldErrors?.metaTitle} />
+            </div>
+            <div className="space-y-1.5">
+              <label
+                htmlFor="prod-meta-description"
+                className="text-sm font-medium"
+              >
+                Meta description{" "}
+                <span className="font-normal text-muted-foreground">
+                  ({values.metaDescription.length}/320)
+                </span>
+              </label>
+              <Textarea
+                id="prod-meta-description"
+                className="min-h-16"
+                value={values.metaDescription}
+                onChange={(e) => set("metaDescription", e.target.value)}
+              />
+              <FieldError messages={state?.fieldErrors?.metaDescription} />
+            </div>
+            <div className="space-y-1.5">
+              <label
+                htmlFor="prod-meta-keywords"
+                className="text-sm font-medium"
+              >
+                Meta keywords
+              </label>
+              <Input
+                id="prod-meta-keywords"
+                className="h-10"
+                value={values.metaKeywords}
+                onChange={(e) => set("metaKeywords", e.target.value)}
+              />
+              <FieldError messages={state?.fieldErrors?.metaKeywords} />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex flex-col gap-6 lg:sticky lg:top-20">
+        {initial && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between gap-2">
+                Status
+                <ProductStatusBadge status={values.status} />
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Select
+                value={values.status}
+                items={STATUS_OPTIONS}
+                onValueChange={(v) => {
+                  if (v) set("status", v);
+                }}
+              >
+                <SelectTrigger
+                  aria-label="Product status"
+                  className="h-10 w-full"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {values.status === "REJECTED" && (
+                <div className="space-y-1.5">
+                  <label htmlFor="prod-reject" className="text-sm font-medium">
+                    Rejection reason
+                  </label>
+                  <Textarea
+                    id="prod-reject"
+                    className="min-h-16"
+                    placeholder="Shown to the seller."
+                    value={values.rejectionReason}
+                    onChange={(e) => set("rejectionReason", e.target.value)}
+                  />
+                </div>
+              )}
+              {initial.seller && (
+                <p className="text-xs text-muted-foreground">
+                  Sold by {initial.seller.shopName} ({initial.seller.code})
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Organize</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" id="prod-category-label">
+                Category
+              </label>
+              <Select
+                value={values.categoryId}
+                items={categoryOptions}
+                onValueChange={(v) => set("categoryId", v ?? "")}
+              >
+                <SelectTrigger
+                  aria-labelledby="prod-category-label"
+                  className="h-10 w-full"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {categoryOptions
+                    .filter((o) => o.value !== "")
+                    .map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <FieldError messages={state?.fieldErrors?.categoryId} />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" id="prod-brand-label">
+                Brand
+              </label>
+              <Select
+                value={values.brandId ?? NONE}
+                items={brandOptions}
+                onValueChange={(v) => set("brandId", v === NONE ? null : v)}
+              >
+                <SelectTrigger
+                  aria-labelledby="prod-brand-label"
+                  className="h-10 w-full"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {brandOptions.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <label
+              htmlFor="prod-featured"
+              className="flex cursor-pointer items-center justify-between gap-3"
+            >
+              <span className="text-sm">
+                <span className="block font-medium">Featured</span>
+                <span className="text-muted-foreground">
+                  Pinned in featured rails
+                </span>
+              </span>
+              <Switch
+                id="prod-featured"
+                checked={values.isFeatured}
+                onCheckedChange={(checked) => set("isFeatured", checked)}
+              />
+            </label>
+          </CardContent>
+        </Card>
+
+        <div className="flex gap-2">
+          <Button type="submit" disabled={pending} className="flex-1">
+            {pending
+              ? "Saving…"
+              : initial
+                ? "Save changes"
+                : "Create draft"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            render={<Link href="/admin/products" />}
+          >
+            Cancel
+          </Button>
+        </div>
+      </div>
+    </form>
+  );
+}
