@@ -28,11 +28,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { CategoryCascade } from "@/components/admin/categories/category-cascade";
 import { getAdminBrands } from "@/lib/api/admin/brands";
-import {
-  categoryPathLabel,
-  getAdminCategories,
-} from "@/lib/api/admin/categories";
+import { getAdminCategories } from "@/lib/api/admin/categories";
 import {
   createProduct,
   setProductStatus,
@@ -40,7 +38,11 @@ import {
   type ProductPayload,
 } from "@/lib/api/admin/products";
 import { ApiError } from "@/lib/api/client";
-import type { AdminProductDetail, ProductStatus } from "@/types/admin";
+import type {
+  AdminCategory,
+  AdminProductDetail,
+  ProductStatus,
+} from "@/types/admin";
 
 /** Mirrors the backend's product create/update schema. */
 const productSchema = z.object({
@@ -128,7 +130,7 @@ export function ProductForm({ initial }: { initial?: AdminProductDetail }) {
   const router = useRouter();
 
   const [pickers, setPickers] = React.useState<{
-    categories: { value: string; label: string }[];
+    categories: AdminCategory[];
     brands: { value: string; label: string }[];
   } | null>(null);
   const [loadError, setLoadError] = React.useState<string | null>(null);
@@ -139,10 +141,7 @@ export function ProductForm({ initial }: { initial?: AdminProductDetail }) {
       .then(([categories, brands]) => {
         if (cancelled) return;
         setPickers({
-          categories: categories.map((c) => ({
-            value: c.id,
-            label: categoryPathLabel(c, categories),
-          })),
+          categories,
           brands: [
             { value: NONE, label: "No brand" },
             ...brands
@@ -586,28 +585,12 @@ export function ProductForm({ initial }: { initial?: AdminProductDetail }) {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium" id="prod-category-label">
-                Category
-              </label>
-              <Select
+              <p className="text-sm font-medium">Category</p>
+              <CategoryCascade
+                categories={pickers.categories}
                 value={values.categoryId || null}
-                items={pickers.categories}
-                onValueChange={(v) => set("categoryId", v ?? "")}
-              >
-                <SelectTrigger
-                  aria-labelledby="prod-category-label"
-                  className="h-10 w-full"
-                >
-                  <SelectValue placeholder="Pick a category…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {pickers.categories.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(id) => set("categoryId", id)}
+              />
               <FieldError messages={state?.fieldErrors?.categoryId} />
             </div>
 
