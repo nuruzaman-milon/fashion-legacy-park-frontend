@@ -20,6 +20,7 @@ import {
   AlertDialogFooter,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { FormAlert } from "@/components/auth/form-alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +31,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -38,16 +40,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  deleteCategory,
+  getAdminCategories,
+} from "@/lib/api/admin/categories";
+import { ApiError } from "@/lib/api/client";
 import type { AdminCategory } from "@/types/admin";
 import { cn } from "@/lib/utils";
 
 interface TreeNode extends AdminCategory {
   children: TreeNode[];
+  /** Own products + everything under it — products attach to leaves. */
+  totalProducts: number;
 }
 
 function buildTree(flat: AdminCategory[]): TreeNode[] {
   const byId = new Map<string, TreeNode>(
-    flat.map((c) => [c.id, { ...c, children: [] }]),
+    flat.map((c) => [c.id, { ...c, children: [], totalProducts: 0 }]),
   );
   const roots: TreeNode[] = [];
   for (const node of byId.values()) {
@@ -56,24 +65,70 @@ function buildTree(flat: AdminCategory[]): TreeNode[] {
     else roots.push(node);
   }
   const bySort = (a: TreeNode, b: TreeNode) => a.sortOrder - b.sortOrder;
-  for (const node of byId.values()) node.children.sort(bySort);
-  return roots.sort(bySort);
+  const sum = (node: TreeNode): number => {
+    node.children.sort(bySort);
+    node.totalProducts =
+      node._count.products + node.children.reduce((n, c) => n + sum(c), 0);
+    return node.totalProducts;
+  };
+  roots.sort(bySort);
+  for (const root of roots) sum(root);
+  return roots;
+}
+
+function TreeSkeleton() {
+  return (
+    <div className="flex flex-col gap-1 py-1">
+      {Array.from({ length: 7 }, (_, i) => (
+        <div key={i} className="flex items-center gap-2 py-2">
+          <Skeleton className="size-5" />
+          <Skeleton className="size-8 rounded-md" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-3.5 w-40" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+          <Skeleton className="h-5 w-14 rounded-4xl" />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /**
- * Category list as an expandable tree — the flat rows come in API shape and
- * the tree is rebuilt from `parentId`, exactly how the live endpoint will
- * feed it. Deletes mirror the backend rule (409 while children or products
- * exist) but only mutate local state until the API is wired.
+ * Category list as an expandable tree — fetched flat from
+ * `GET /admin/categories` and rebuilt from `parentId`. Deletes call the API;
+ * a category that still has children or products is blocked up-front, the
+ * same rule the backend enforces with a 409.
  */
-export function CategoryTree({ categories }: { categories: AdminCategory[] }) {
-  const [items, setItems] = React.useState(categories);
-  const [expanded, setExpanded] = React.useState<Set<string>>(
-    () => new Set(categories.filter((c) => !c.parentId).map((c) => c.id)),
-  );
+export function CategoryTree() {
+  const [items, setItems] = React.useState<AdminCategory[] | null>(null);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+  const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
   const [toDelete, setToDelete] = React.useState<AdminCategory | null>(null);
+  const [deleteBusy, setDeleteBusy] = React.useState(false);
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
 
-  const tree = React.useMemo(() => buildTree(items), [items]);
+  const load = React.useCallback(() => {
+    getAdminCategories()
+      .then((list) => {
+        setItems(list);
+        // Roots start expanded so the tree reads at a glance.
+        setExpanded(new Set(list.filter((c) => !c.parentId).map((c) => c.id)));
+      })
+      .catch((err) => {
+        setLoadError(
+          err instanceof ApiError
+            ? err.message
+            : "Could not load categories. Please try again.",
+        );
+      });
+  }, []);
+
+  React.useEffect(() => {
+    load();
+  }, [load]);
+
+  const tree = React.useMemo(() => buildTree(items ?? []), [items]);
 
   const toggle = (id: string) =>
     setExpanded((prev) => {
@@ -82,6 +137,34 @@ export function CategoryTree({ categories }: { categories: AdminCategory[] }) {
       else next.add(id);
       return next;
     });
+
+  if (loadError) {
+    return (
+      <div className="space-y-3 py-2">
+        <FormAlert>{loadError}</FormAlert>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setLoadError(null);
+            load();
+          }}
+        >
+          Try again
+        </Button>
+      </div>
+    );
+  }
+
+  if (items === null) return <TreeSkeleton />;
+
+  if (items.length === 0) {
+    return (
+      <p className="py-10 text-center text-sm text-muted-foreground">
+        No categories yet — create the first one.
+      </p>
+    );
+  }
 
   const rows: { node: TreeNode; depth: number }[] = [];
   const walk = (nodes: TreeNode[], depth: number) => {
@@ -95,6 +178,26 @@ export function CategoryTree({ categories }: { categories: AdminCategory[] }) {
   const blocked =
     toDelete !== null &&
     (toDelete._count.children > 0 || toDelete._count.products > 0);
+
+  async function confirmDelete() {
+    if (!toDelete) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await deleteCategory(toDelete.id);
+      setItems((prev) => prev?.filter((c) => c.id !== toDelete.id) ?? null);
+      setToDelete(null);
+    } catch (err) {
+      // A 409 means the pre-check was stale (rows changed server-side).
+      setDeleteError(
+        err instanceof ApiError
+          ? err.message
+          : "Could not delete the category. Please try again.",
+      );
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
 
   return (
     <>
@@ -160,7 +263,7 @@ export function CategoryTree({ categories }: { categories: AdminCategory[] }) {
                 </div>
               </TableCell>
               <TableCell className="text-right tabular-nums">
-                {node._count.products}
+                {node.totalProducts}
               </TableCell>
               <TableCell className="text-center">
                 {node.showOnHome && (
@@ -221,7 +324,10 @@ export function CategoryTree({ categories }: { categories: AdminCategory[] }) {
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       className="text-destructive data-highlighted:bg-destructive data-highlighted:text-white"
-                      onClick={() => setToDelete(node)}
+                      onClick={() => {
+                        setDeleteError(null);
+                        setToDelete(node);
+                      }}
                     >
                       <Trash2Icon className="size-4" />
                       Delete
@@ -237,7 +343,7 @@ export function CategoryTree({ categories }: { categories: AdminCategory[] }) {
       <AlertDialog
         open={toDelete !== null}
         onOpenChange={(open) => {
-          if (!open) setToDelete(null);
+          if (!open && !deleteBusy) setToDelete(null);
         }}
       >
         <AlertDialogContent>
@@ -250,23 +356,23 @@ export function CategoryTree({ categories }: { categories: AdminCategory[] }) {
                   toDelete && toDelete._count.children > 0
                     ? `${toDelete._count.children} subcategories`
                     : `${toDelete?._count.products} products`
-                }. Move or delete those first — the API refuses otherwise.`
-              : `"${toDelete?.name}" will be removed permanently. This is a design preview — nothing is sent to the server yet.`}
+                }. Move or delete those first.`
+              : `"${toDelete?.name}" will be removed permanently.`}
           </AlertDialogDescription>
+          {deleteError && <FormAlert>{deleteError}</FormAlert>}
           <AlertDialogFooter>
-            <AlertDialogClose render={<Button variant="outline" />}>
+            <AlertDialogClose
+              render={<Button variant="outline" disabled={deleteBusy} />}
+            >
               {blocked ? "Close" : "Cancel"}
             </AlertDialogClose>
             {!blocked && (
               <Button
                 variant="destructive"
-                onClick={() => {
-                  const id = toDelete?.id;
-                  setToDelete(null);
-                  if (id) setItems((prev) => prev.filter((c) => c.id !== id));
-                }}
+                disabled={deleteBusy}
+                onClick={() => void confirmDelete()}
               >
-                Delete
+                {deleteBusy ? "Deleting…" : "Delete"}
               </Button>
             )}
           </AlertDialogFooter>

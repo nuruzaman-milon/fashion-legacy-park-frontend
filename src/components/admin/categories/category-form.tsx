@@ -3,6 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Trash2Icon, UploadIcon } from "lucide-react";
 import * as z from "zod";
 
@@ -24,8 +25,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  createCategory,
+  getAdminCategories,
+  updateCategory,
+  type CategoryPayload,
+} from "@/lib/api/admin/categories";
+import { MAX_UPLOAD_BYTES, uploadImage } from "@/lib/api/admin/uploads";
+import { ApiError } from "@/lib/api/client";
 import type { AdminCategory } from "@/types/admin";
 
 /** Mirrors the backend's create/update schema (category.validation.ts). */
@@ -61,43 +71,83 @@ export function slugify(name: string): string {
 
 const NO_PARENT = "__root__";
 
-interface FormState {
-  fieldErrors?: Record<string, string[]>;
-  saved?: boolean;
+/**
+ * One image field. `current` is the stored URL; picking a file stages it
+ * (uploaded on submit), `removed` clears the field. `changed` decides
+ * whether the PATCH mentions this field at all.
+ */
+interface ImageSlot {
+  current: string | null;
+  file: File | null;
+  preview: string | null;
+  removed: boolean;
+  error: string | null;
 }
 
-/**
- * One image slot: local file → object-URL preview. The real flow (POST
- * /uploads/image → { url, publicId } → save both on the category) hooks in
- * where `onChange` currently stores the preview URL.
- */
+const emptySlot = (current: string | null): ImageSlot => ({
+  current,
+  file: null,
+  preview: null,
+  removed: false,
+  error: null,
+});
+
+const slotChanged = (slot: ImageSlot) => slot.file !== null || slot.removed;
+const slotShows = (slot: ImageSlot) =>
+  slot.preview ?? (slot.removed ? null : slot.current);
+
+interface FormState {
+  fieldErrors?: Record<string, string[]>;
+  formError?: string;
+}
+
 function ImagePicker({
   id,
   label,
   hint,
-  value,
+  slot,
   onChange,
   previewClass,
 }: {
   id: string;
   label: string;
   hint: string;
-  value: string | null;
-  onChange: (url: string | null) => void;
+  slot: ImageSlot;
+  onChange: (slot: ImageSlot) => void;
   previewClass: string;
 }) {
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const shown = slotShows(slot);
+
+  function pick(file: File) {
+    if (!file.type.startsWith("image/")) {
+      onChange({ ...slot, error: "Please choose an image file" });
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      onChange({ ...slot, error: "Images can be at most 2 MB" });
+      return;
+    }
+    onChange({
+      ...slot,
+      file,
+      preview: URL.createObjectURL(file),
+      removed: false,
+      error: null,
+    });
+  }
+
   return (
     <div className="space-y-1.5">
       <p className="text-sm font-medium">{label}</p>
       <div className="flex items-center gap-3">
-        {value ? (
+        {shown ? (
           <Image
-            src={value}
+            src={shown}
             alt=""
             width={96}
             height={96}
-            unoptimized
+            unoptimized={shown.startsWith("blob:")}
             className={previewClass}
           />
         ) : (
@@ -117,7 +167,7 @@ function ImagePicker({
             onChange={(e) => {
               const file = e.target.files?.[0];
               e.target.value = "";
-              if (file) onChange(URL.createObjectURL(file));
+              if (file) pick(file);
             }}
           />
           <div className="flex gap-2">
@@ -128,14 +178,22 @@ function ImagePicker({
               onClick={() => inputRef.current?.click()}
             >
               <UploadIcon className="size-3.5" />
-              {value ? "Replace" : "Upload"}
+              {shown ? "Replace" : "Upload"}
             </Button>
-            {value && (
+            {shown && (
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => onChange(null)}
+                onClick={() =>
+                  onChange({
+                    ...slot,
+                    file: null,
+                    preview: null,
+                    removed: slot.current !== null,
+                    error: null,
+                  })
+                }
               >
                 <Trash2Icon className="size-3.5" />
                 Remove
@@ -143,45 +201,143 @@ function ImagePicker({
             )}
           </div>
           <p className="text-xs text-muted-foreground">{hint}</p>
+          {slot.error && (
+            <p className="text-xs text-destructive">{slot.error}</p>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
+function FormSkeleton() {
+  return (
+    <div className="grid items-start gap-6 lg:grid-cols-[1fr_18rem]">
+      <div className="flex flex-col gap-6">
+        {Array.from({ length: 2 }, (_, i) => (
+          <Card key={i}>
+            <CardHeader>
+              <Skeleton className="h-5 w-24" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-20 w-full" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-5 w-20" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Skeleton className="h-6 w-full" />
+          <Skeleton className="h-6 w-full" />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/**
+ * Create (`categoryId` absent) or edit. Fetches the flat admin list itself —
+ * it needs it for parent options anyway, and the edit target is a row of it.
+ */
 export function CategoryForm({
-  initial,
+  categoryId,
   defaultParentId = null,
+}: {
+  categoryId?: string;
+  /** Preselects the parent when arriving via "Add subcategory". */
+  defaultParentId?: string | null;
+}) {
+  const [categories, setCategories] = React.useState<AdminCategory[] | null>(
+    null,
+  );
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    getAdminCategories()
+      .then((list) => {
+        if (!cancelled) setCategories(list);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setLoadError(
+            err instanceof ApiError
+              ? err.message
+              : "Could not load categories. Please try again.",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (loadError) return <FormAlert>{loadError}</FormAlert>;
+  if (categories === null) return <FormSkeleton />;
+
+  const initial = categoryId
+    ? categories.find((c) => c.id === categoryId)
+    : undefined;
+  if (categoryId && !initial) {
+    return <FormAlert>This category no longer exists.</FormAlert>;
+  }
+
+  return (
+    <CategoryFormInner
+      key={categoryId ?? "new"}
+      initial={initial}
+      defaultParentId={defaultParentId}
+      categories={categories}
+    />
+  );
+}
+
+function CategoryFormInner({
+  initial,
+  defaultParentId,
   categories,
 }: {
   initial?: AdminCategory;
-  /** Preselects the parent when arriving via "Add subcategory". */
-  defaultParentId?: string | null;
-  /** Flat admin list — parent options are derived from it. */
+  defaultParentId: string | null;
   categories: AdminCategory[];
 }) {
-  // Controlled throughout, so a failed validation never wipes the edits.
+  const router = useRouter();
+
+  // Controlled throughout, so a failed save never wipes the edits.
   const [values, setValues] = React.useState(() => ({
     name: initial?.name ?? "",
     slug: initial?.slug ?? "",
     description: initial?.description ?? "",
-    parentId: initial?.parentId ?? defaultParentId,
+    parentId:
+      initial?.parentId ??
+      (categories.some((c) => c.id === defaultParentId)
+        ? defaultParentId
+        : null),
     sortOrder: String(initial?.sortOrder ?? 0),
     isActive: initial?.isActive ?? true,
     showOnHome: initial?.showOnHome ?? false,
     homeSortOrder: String(initial?.homeSortOrder ?? 0),
-    icon: initial?.icon ?? null,
-    image: initial?.image ?? null,
-    banner: initial?.banner ?? null,
     metaTitle: initial?.metaTitle ?? "",
     metaDescription: initial?.metaDescription ?? "",
     metaKeywords: initial?.metaKeywords ?? "",
+  }));
+  const [slots, setSlots] = React.useState(() => ({
+    icon: emptySlot(initial?.icon ?? null),
+    image: emptySlot(initial?.image ?? null),
+    banner: emptySlot(initial?.banner ?? null),
   }));
 
   const set = <K extends keyof typeof values>(
     key: K,
     value: (typeof values)[K],
   ) => setValues((v) => ({ ...v, [key]: value }));
+  const setSlot = (key: keyof typeof slots) => (slot: ImageSlot) =>
+    setSlots((s) => ({ ...s, [key]: slot }));
 
   // Max tree depth is 3, so only roots and their direct children can be
   // parents. Editing also excludes the category itself and its subtree.
@@ -226,19 +382,64 @@ export function CategoryForm({
     if (!parsed.success) {
       return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
     }
-    // Design preview — the PATCH/POST /admin/categories call lands here.
-    return { saved: true };
+    const trimOrNull = (s: string) => {
+      const t = s.trim();
+      return t === "" ? null : t;
+    };
+
+    try {
+      const payload: CategoryPayload = {
+        name: parsed.data.name,
+        description: trimOrNull(values.description),
+        parentId: values.parentId,
+        sortOrder: parsed.data.sortOrder,
+        isActive: values.isActive,
+        showOnHome: values.showOnHome,
+        homeSortOrder: parsed.data.homeSortOrder,
+        metaTitle: trimOrNull(values.metaTitle),
+        metaDescription: trimOrNull(values.metaDescription),
+        metaKeywords: trimOrNull(values.metaKeywords),
+      };
+      const slug = values.slug.trim();
+      if (slug) payload.slug = slug;
+
+      // Upload staged files first, then reference them; untouched slots are
+      // omitted so the backend keeps its stored url + publicId pair.
+      for (const key of ["icon", "image", "banner"] as const) {
+        const slot = slots[key];
+        if (!slotChanged(slot)) continue;
+        if (slot.file) {
+          const uploaded = await uploadImage(slot.file, "categories");
+          payload[key] = uploaded.url;
+          payload[`${key}PublicId`] = uploaded.publicId;
+        } else {
+          payload[key] = null;
+          payload[`${key}PublicId`] = null;
+        }
+      }
+
+      if (initial) {
+        await updateCategory(initial.id, payload);
+      } else {
+        await createCategory({ ...payload, name: parsed.data.name });
+      }
+      router.push("/admin/categories");
+      return undefined;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return { formError: error.message, fieldErrors: error.fieldErrors };
+      }
+      return { formError: "Something went wrong. Please try again." };
+    }
   }, undefined);
 
   return (
-    <form action={formAction} className="grid items-start gap-6 lg:grid-cols-[1fr_18rem]">
+    <form
+      action={formAction}
+      className="grid items-start gap-6 lg:grid-cols-[1fr_18rem]"
+    >
       <div className="flex min-w-0 flex-col gap-6">
-        {state?.saved && (
-          <FormAlert tone="success">
-            Looks good — “{values.name}” passed validation. Saving activates
-            once the categories API is wired up.
-          </FormAlert>
-        )}
+        {state?.formError && <FormAlert>{state.formError}</FormAlert>}
 
         <Card>
           <CardHeader>
@@ -317,6 +518,7 @@ export function CategoryForm({
                     ))}
                   </SelectContent>
                 </Select>
+                <FieldError messages={state?.fieldErrors?.parentId} />
               </div>
               <div className="space-y-1.5">
                 <label htmlFor="cat-sort" className="text-sm font-medium">
@@ -338,34 +540,31 @@ export function CategoryForm({
         <Card>
           <CardHeader>
             <CardTitle>Images</CardTitle>
-            <CardDescription>
-              JPG or PNG, up to 2 MB each. Uploads go to Cloudinary once the
-              API is wired.
-            </CardDescription>
+            <CardDescription>JPG or PNG, up to 2 MB each.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <ImagePicker
               id="cat-icon"
               label="Icon"
               hint="Small square shown in menus."
-              value={values.icon}
-              onChange={(url) => set("icon", url)}
+              slot={slots.icon}
+              onChange={setSlot("icon")}
               previewClass="size-10 rounded-md object-cover"
             />
             <ImagePicker
               id="cat-image"
               label="Tile image"
               hint="Homepage “Shop by category” tile."
-              value={values.image}
-              onChange={(url) => set("image", url)}
+              slot={slots.image}
+              onChange={setSlot("image")}
               previewClass="size-16 rounded-lg object-cover"
             />
             <ImagePicker
               id="cat-banner"
               label="Banner"
               hint="Wide header on the category page."
-              value={values.banner}
-              onChange={(url) => set("banner", url)}
+              slot={slots.banner}
+              onChange={setSlot("banner")}
               previewClass="h-16 w-40 rounded-lg object-cover"
             />
           </CardContent>

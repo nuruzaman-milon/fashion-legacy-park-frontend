@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as z from "zod";
 
 import { ProductStatusBadge } from "@/components/admin/products/product-status-badge";
@@ -23,8 +24,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { getAdminBrands } from "@/lib/api/admin/brands";
+import {
+  categoryPathLabel,
+  getAdminCategories,
+} from "@/lib/api/admin/categories";
+import {
+  createProduct,
+  setProductStatus,
+  updateProduct,
+  type ProductPayload,
+} from "@/lib/api/admin/products";
+import { ApiError } from "@/lib/api/client";
 import type { AdminProductDetail, ProductStatus } from "@/types/admin";
 
 /** Mirrors the backend's product create/update schema. */
@@ -55,30 +69,102 @@ const productSchema = z.object({
 
 const NONE = "__none__";
 
-const STATUS_OPTIONS: { value: ProductStatus; label: string }[] = [
-  { value: "DRAFT", label: "Draft" },
-  { value: "PENDING_APPROVAL", label: "Pending approval" },
-  { value: "ACTIVE", label: "Active" },
-  { value: "INACTIVE", label: "Inactive" },
-  { value: "REJECTED", label: "Rejected" },
+/** What `PATCH /admin/products/:id/status` accepts from an admin. */
+const SETTABLE_STATUSES: ProductStatus[] = [
+  "DRAFT",
+  "ACTIVE",
+  "INACTIVE",
+  "REJECTED",
 ];
+
+const STATUS_LABEL: Record<ProductStatus, string> = {
+  DRAFT: "Draft",
+  PENDING_APPROVAL: "Pending approval",
+  ACTIVE: "Active",
+  INACTIVE: "Inactive",
+  REJECTED: "Rejected",
+  OUT_OF_STOCK: "Out of stock",
+};
 
 interface FormState {
   fieldErrors?: Record<string, string[]>;
+  formError?: string;
   saved?: boolean;
 }
 
-export function ProductForm({
-  initial,
-  categories,
-  brands,
-}: {
-  initial?: AdminProductDetail;
-  /** Leaf-first flat list for the category picker. */
-  categories: { id: string; name: string }[];
-  brands: { id: string; name: string }[];
-}) {
-  // Controlled throughout — a failed validation never wipes the edits.
+function FormSkeleton() {
+  return (
+    <div className="grid items-start gap-6 lg:grid-cols-[1fr_18rem]">
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-5 w-24" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-28 w-full" />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-5 w-20" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/**
+ * Create (`initial` absent — POSTs a draft, then jumps to its edit page where
+ * photos and variants live) or edit (PATCH; a status change goes through the
+ * separate admin-only status endpoint).
+ */
+export function ProductForm({ initial }: { initial?: AdminProductDetail }) {
+  const router = useRouter();
+
+  const [pickers, setPickers] = React.useState<{
+    categories: { value: string; label: string }[];
+    brands: { value: string; label: string }[];
+  } | null>(null);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    Promise.all([getAdminCategories(), getAdminBrands()])
+      .then(([categories, brands]) => {
+        if (cancelled) return;
+        setPickers({
+          categories: categories.map((c) => ({
+            value: c.id,
+            label: categoryPathLabel(c, categories),
+          })),
+          brands: [
+            { value: NONE, label: "No brand" },
+            ...brands
+              .filter((b) => b.isActive)
+              .map((b) => ({ value: b.id, label: b.name })),
+          ],
+        });
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setLoadError(
+            err instanceof ApiError
+              ? err.message
+              : "Could not load the form. Please try again.",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Controlled throughout — a failed save never wipes the edits.
   const [values, setValues] = React.useState(() => ({
     name: initial?.name ?? "",
     slug: initial?.slug ?? "",
@@ -101,20 +187,12 @@ export function ProductForm({
     value: (typeof values)[K],
   ) => setValues((v) => ({ ...v, [key]: value }));
 
-  const categoryOptions = React.useMemo(
-    () => [
-      { value: "", label: "Pick a category…" },
-      ...categories.map((c) => ({ value: c.id, label: c.name })),
-    ],
-    [categories],
-  );
-  const brandOptions = React.useMemo(
-    () => [
-      { value: NONE, label: "No brand" },
-      ...brands.map((b) => ({ value: b.id, label: b.name })),
-    ],
-    [brands],
-  );
+  const statusItems = React.useMemo(() => {
+    const statuses = SETTABLE_STATUSES.includes(values.status)
+      ? SETTABLE_STATUSES
+      : [values.status, ...SETTABLE_STATUSES];
+    return statuses.map((s) => ({ value: s, label: STATUS_LABEL[s] }));
+  }, [values.status]);
 
   const [state, formAction, pending] = React.useActionState<
     FormState | undefined,
@@ -130,9 +208,62 @@ export function ProductForm({
     if (!parsed.success) {
       return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
     }
-    // Design preview — POST/PATCH /admin/products lands here.
-    return { saved: true };
+    const trimOrNull = (s: string) => {
+      const t = s.trim();
+      return t === "" ? null : t;
+    };
+
+    const payload: ProductPayload = {
+      name: parsed.data.name,
+      shortDescription: trimOrNull(values.shortDescription),
+      description: trimOrNull(values.description),
+      videoUrl: trimOrNull(values.videoUrl),
+      categoryId: values.categoryId,
+      brandId: values.brandId,
+      isFeatured: values.isFeatured,
+      tags: parsed.data.tags,
+      metaTitle: trimOrNull(values.metaTitle),
+      metaDescription: trimOrNull(values.metaDescription),
+      metaKeywords: trimOrNull(values.metaKeywords),
+    };
+    const slug = values.slug.trim();
+    if (slug) payload.slug = slug;
+
+    try {
+      if (!initial) {
+        const created = await createProduct({
+          ...payload,
+          name: parsed.data.name,
+          categoryId: values.categoryId,
+        });
+        router.push(`/admin/products/${created.id}/edit`);
+        return undefined;
+      }
+
+      await updateProduct(initial.id, payload);
+      if (
+        values.status !== initial.status &&
+        SETTABLE_STATUSES.includes(values.status)
+      ) {
+        await setProductStatus(
+          initial.id,
+          values.status as "DRAFT" | "ACTIVE" | "INACTIVE" | "REJECTED",
+          values.status === "REJECTED"
+            ? values.rejectionReason.trim() || undefined
+            : undefined,
+        );
+      }
+      return { saved: true };
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return { formError: error.message, fieldErrors: error.fieldErrors };
+      }
+      return { formError: "Something went wrong. Please try again." };
+    }
   }, undefined);
+
+  if (loadError) return <FormAlert>{loadError}</FormAlert>;
+  if (pickers === null) return <FormSkeleton />;
 
   return (
     <form
@@ -141,11 +272,9 @@ export function ProductForm({
     >
       <div className="flex min-w-0 flex-col gap-6">
         {state?.saved && (
-          <FormAlert tone="success">
-            Looks good — “{values.name}” passed validation. Saving activates
-            once the products API is wired up.
-          </FormAlert>
+          <FormAlert tone="success">Product saved.</FormAlert>
         )}
+        {state?.formError && <FormAlert>{state.formError}</FormAlert>}
         {!initial && (
           <FormAlert tone="info">
             New products are created as drafts. Variants and photos are added
@@ -328,7 +457,7 @@ export function ProductForm({
             <CardContent className="space-y-3">
               <Select
                 value={values.status}
-                items={STATUS_OPTIONS}
+                items={statusItems}
                 onValueChange={(v) => {
                   if (v) set("status", v);
                 }}
@@ -340,7 +469,7 @@ export function ProductForm({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {STATUS_OPTIONS.map((o) => (
+                  {statusItems.map((o) => (
                     <SelectItem key={o.value} value={o.value}>
                       {o.label}
                     </SelectItem>
@@ -380,24 +509,22 @@ export function ProductForm({
                 Category
               </label>
               <Select
-                value={values.categoryId}
-                items={categoryOptions}
+                value={values.categoryId || null}
+                items={pickers.categories}
                 onValueChange={(v) => set("categoryId", v ?? "")}
               >
                 <SelectTrigger
                   aria-labelledby="prod-category-label"
                   className="h-10 w-full"
                 >
-                  <SelectValue />
+                  <SelectValue placeholder="Pick a category…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categoryOptions
-                    .filter((o) => o.value !== "")
-                    .map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
-                      </SelectItem>
-                    ))}
+                  {pickers.categories.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <FieldError messages={state?.fieldErrors?.categoryId} />
@@ -409,7 +536,7 @@ export function ProductForm({
               </label>
               <Select
                 value={values.brandId ?? NONE}
-                items={brandOptions}
+                items={pickers.brands}
                 onValueChange={(v) => set("brandId", v === NONE ? null : v)}
               >
                 <SelectTrigger
@@ -419,7 +546,7 @@ export function ProductForm({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {brandOptions.map((o) => (
+                  {pickers.brands.map((o) => (
                     <SelectItem key={o.value} value={o.value}>
                       {o.label}
                     </SelectItem>

@@ -6,7 +6,6 @@ import { CategoryTree } from "@/components/admin/categories/category-tree";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { mockAdminCategories } from "@/lib/api/mock/admin-data";
 
 export const metadata: Metadata = { title: "Categories" };
 
@@ -25,7 +24,7 @@ export default function AdminCategoriesPage() {
 
       <Card>
         <CardContent>
-          <CategoryTree categories={mockAdminCategories} />
+          <CategoryTree />
         </CardContent>
       </Card>
     </div>

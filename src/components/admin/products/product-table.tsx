@@ -4,6 +4,8 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
   EllipsisIcon,
   ExternalLinkIcon,
   PencilIcon,
@@ -21,6 +23,7 @@ import {
   AlertDialogFooter,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { FormAlert } from "@/components/auth/form-alert";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -38,6 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -46,8 +50,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  categoryPathLabel,
+  getAdminCategories,
+} from "@/lib/api/admin/categories";
+import {
+  deleteProduct,
+  listAdminProducts,
+} from "@/lib/api/admin/products";
+import { ApiError } from "@/lib/api/client";
 import { formatPriceRange } from "@/lib/format";
-import type { AdminProductListItem, ProductStatus } from "@/types/admin";
+import type {
+  AdminProductListItem,
+  PaginationMeta,
+  ProductStatus,
+} from "@/types/admin";
 import { cn } from "@/lib/utils";
 
 const ALL = "__all__";
@@ -62,45 +79,147 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "OUT_OF_STOCK", label: "Out of stock" },
 ];
 
+function RowsSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 6 }, (_, i) => (
+        <TableRow key={i} className="hover:bg-transparent">
+          <TableCell>
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-12 w-10 rounded-md" />
+              <div className="space-y-1.5">
+                <Skeleton className="h-3.5 w-44" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            </div>
+          </TableCell>
+          <TableCell><Skeleton className="h-3.5 w-20" /></TableCell>
+          <TableCell><Skeleton className="h-5 w-16 rounded-4xl" /></TableCell>
+          <TableCell><Skeleton className="ml-auto h-3.5 w-16" /></TableCell>
+          <TableCell><Skeleton className="ml-auto h-3.5 w-8" /></TableCell>
+          <TableCell><Skeleton className="ml-auto h-3.5 w-10" /></TableCell>
+          <TableCell />
+        </TableRow>
+      ))}
+    </>
+  );
+}
+
 /**
- * Products table with the same search/status/category controls the live
- * endpoint accepts as query params — filtering runs locally until then.
- * Deletes only touch local state.
+ * Server-driven products table: search, status and category map straight to
+ * the query params of `GET /admin/products`; pagination comes from its meta.
  */
-export function ProductTable({
-  products,
-  categories,
-}: {
-  products: AdminProductListItem[];
-  categories: { id: string; name: string }[];
-}) {
-  const [items, setItems] = React.useState(products);
+export function ProductTable() {
+  // The fetch result remembers which query it answered; "loading" is derived
+  // (result key ≠ current key) instead of set synchronously in the effect.
+  const [result, setResult] = React.useState<{
+    key: string;
+    data: { items: AdminProductListItem[]; meta: PaginationMeta };
+  } | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const [categories, setCategories] = React.useState<
+    { value: string; label: string }[]
+  >([{ value: ALL, label: "All categories" }]);
+
   const [search, setSearch] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [status, setStatus] = React.useState<string>(ALL);
   const [categoryId, setCategoryId] = React.useState<string>(ALL);
+  const [page, setPage] = React.useState(1);
+
   const [toDelete, setToDelete] =
     React.useState<AdminProductListItem | null>(null);
+  const [deleteBusy, setDeleteBusy] = React.useState(false);
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
+  const [refreshTick, setRefreshTick] = React.useState(0);
 
-  const categoryOptions = React.useMemo(
-    () => [
-      { value: ALL, label: "All categories" },
-      ...categories.map((c) => ({ value: c.id, label: c.name })),
-    ],
-    [categories],
-  );
+  React.useEffect(() => {
+    const handle = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(handle);
+  }, [search]);
 
-  const query = search.trim().toLowerCase();
-  const filtered = items.filter((p) => {
-    if (status !== ALL && p.status !== (status as ProductStatus)) return false;
-    if (categoryId !== ALL && p.category.id !== categoryId) return false;
-    if (
-      query &&
-      !p.name.toLowerCase().includes(query) &&
-      !p.slug.includes(query)
-    )
-      return false;
-    return true;
-  });
+  // Filter labels for the category dropdown — child rows get a parent prefix.
+  React.useEffect(() => {
+    let cancelled = false;
+    getAdminCategories()
+      .then((list) => {
+        if (cancelled) return;
+        setCategories([
+          { value: ALL, label: "All categories" },
+          ...list.map((c) => ({
+            value: c.id,
+            label: categoryPathLabel(c, list),
+          })),
+        ]);
+      })
+      .catch(() => {
+        // The filter degrades to "All categories"; the table still works.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const queryKey = [page, debouncedSearch, status, categoryId, refreshTick]
+    .map(String)
+    .join("|");
+
+  React.useEffect(() => {
+    let cancelled = false;
+    listAdminProducts({
+      page,
+      search: debouncedSearch || undefined,
+      status: status === ALL ? undefined : (status as ProductStatus),
+      categoryId: categoryId === ALL ? undefined : categoryId,
+    })
+      .then((data) => {
+        if (cancelled) return;
+        setResult({ key: queryKey, data });
+        setError(null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(
+          err instanceof ApiError
+            ? err.message
+            : "Could not load products. Please try again.",
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, debouncedSearch, status, categoryId, refreshTick, queryKey]);
+
+  const loading = !error && result?.key !== queryKey;
+  const data = result?.data ?? null;
+
+  // Filters reset paging — page 5 of "Active" makes no sense after switching.
+  const applyFilter = (apply: () => void) => {
+    setPage(1);
+    apply();
+  };
+
+  async function confirmDelete() {
+    if (!toDelete) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await deleteProduct(toDelete.id);
+      setToDelete(null);
+      setRefreshTick((t) => t + 1);
+    } catch (err) {
+      setDeleteError(
+        err instanceof ApiError
+          ? err.message
+          : "Could not delete the product. Please try again.",
+      );
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  const meta = data?.meta;
 
   return (
     <>
@@ -113,13 +232,13 @@ export function ProductTable({
             aria-label="Search products"
             className="h-9 pl-8"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => applyFilter(() => setSearch(e.target.value))}
           />
         </div>
         <Select
           value={status}
           items={STATUS_OPTIONS}
-          onValueChange={(v) => setStatus(v ?? ALL)}
+          onValueChange={(v) => applyFilter(() => setStatus(v ?? ALL))}
         >
           <SelectTrigger aria-label="Filter by status" className="w-44">
             <SelectValue />
@@ -134,14 +253,14 @@ export function ProductTable({
         </Select>
         <Select
           value={categoryId}
-          items={categoryOptions}
-          onValueChange={(v) => setCategoryId(v ?? ALL)}
+          items={categories}
+          onValueChange={(v) => applyFilter(() => setCategoryId(v ?? ALL))}
         >
-          <SelectTrigger aria-label="Filter by category" className="w-44">
+          <SelectTrigger aria-label="Filter by category" className="w-52">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {categoryOptions.map((o) => (
+            {categories.map((o) => (
               <SelectItem key={o.value} value={o.value}>
                 {o.label}
               </SelectItem>
@@ -150,162 +269,219 @@ export function ProductTable({
         </Select>
       </div>
 
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead>Product</TableHead>
-            <TableHead>Category</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Price</TableHead>
-            <TableHead className="text-right">Stock</TableHead>
-            <TableHead className="text-right">Sold</TableHead>
-            <TableHead className="w-10" />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filtered.length === 0 && (
+      {error && (
+        <div className="space-y-3">
+          <FormAlert>{error}</FormAlert>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setError(null);
+              setRefreshTick((t) => t + 1);
+            }}
+          >
+            Try again
+          </Button>
+        </div>
+      )}
+
+      {!error && (
+        <Table>
+          <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableCell
-                colSpan={7}
-                className="py-10 text-center text-muted-foreground"
-              >
-                No products match these filters.
-              </TableCell>
+              <TableHead>Product</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Price</TableHead>
+              <TableHead className="text-right">Stock</TableHead>
+              <TableHead className="text-right">Sold</TableHead>
+              <TableHead className="w-10" />
             </TableRow>
-          )}
-          {filtered.map((p) => {
-            const primary =
-              p.images.find((img) => img.isPrimary) ?? p.images[0];
-            return (
-              <TableRow key={p.id}>
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    {primary ? (
-                      <Image
-                        src={primary.url}
-                        alt=""
-                        width={40}
-                        height={48}
-                        className="h-12 w-10 shrink-0 rounded-md object-cover"
-                      />
-                    ) : (
-                      <div className="h-12 w-10 shrink-0 rounded-md bg-muted" />
-                    )}
-                    <div className="min-w-0">
-                      <p className="flex items-center gap-1.5 font-medium">
-                        <span className="max-w-56 truncate">{p.name}</span>
-                        {p.isFeatured && (
-                          <StarIcon
-                            aria-label="Featured"
-                            className="size-3.5 shrink-0 fill-brand text-brand"
-                          />
-                        )}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {p._count.variants}{" "}
-                        {p._count.variants === 1 ? "variant" : "variants"}
-                        {p.seller && ` · ${p.seller.shopName}`}
-                      </p>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {p.category.name}
-                </TableCell>
-                <TableCell>
-                  <ProductStatusBadge status={p.status} />
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {p.minPrice
-                    ? formatPriceRange(Number(p.minPrice), Number(p.maxPrice))
-                    : "—"}
-                </TableCell>
+          </TableHeader>
+          <TableBody>
+            {loading && <RowsSkeleton />}
+            {!loading && data?.items.length === 0 && (
+              <TableRow className="hover:bg-transparent">
                 <TableCell
-                  className={cn(
-                    "text-right tabular-nums",
-                    p.totalStock === 0 && "font-medium text-destructive",
-                  )}
+                  colSpan={7}
+                  className="py-10 text-center text-muted-foreground"
                 >
-                  {p.totalStock}
-                </TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {p.soldCount}
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      render={
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`Actions for ${p.name}`}
-                        />
-                      }
-                    >
-                      <EllipsisIcon className="size-4" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLinkItem
-                        render={<Link href={`/admin/products/${p.id}/edit`} />}
-                      >
-                        <PencilIcon className="size-4" />
-                        Edit
-                      </DropdownMenuLinkItem>
-                      <DropdownMenuLinkItem
-                        render={
-                          <Link href={`/products/${p.slug}`} target="_blank" />
-                        }
-                      >
-                        <ExternalLinkIcon className="size-4" />
-                        View in store
-                      </DropdownMenuLinkItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="text-destructive data-highlighted:bg-destructive data-highlighted:text-white"
-                        onClick={() => setToDelete(p)}
-                      >
-                        <Trash2Icon className="size-4" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  No products match these filters.
                 </TableCell>
               </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+            )}
+            {!loading &&
+              data?.items.map((p) => {
+                const primary =
+                  p.images.find((img) => img.isPrimary) ?? p.images[0];
+                return (
+                  <TableRow key={p.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        {primary ? (
+                          <Image
+                            src={primary.url}
+                            alt=""
+                            width={40}
+                            height={48}
+                            className="h-12 w-10 shrink-0 rounded-md object-cover"
+                          />
+                        ) : (
+                          <div className="h-12 w-10 shrink-0 rounded-md bg-muted" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="flex items-center gap-1.5 font-medium">
+                            <span className="max-w-56 truncate">{p.name}</span>
+                            {p.isFeatured && (
+                              <StarIcon
+                                aria-label="Featured"
+                                className="size-3.5 shrink-0 fill-brand text-brand"
+                              />
+                            )}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {p._count.variants}{" "}
+                            {p._count.variants === 1 ? "variant" : "variants"}
+                            {p.seller && ` · ${p.seller.shopName}`}
+                          </p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {p.category.name}
+                    </TableCell>
+                    <TableCell>
+                      <ProductStatusBadge status={p.status} />
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {p.minPrice
+                        ? formatPriceRange(
+                            Number(p.minPrice),
+                            Number(p.maxPrice),
+                          )
+                        : "—"}
+                    </TableCell>
+                    <TableCell
+                      className={cn(
+                        "text-right tabular-nums",
+                        p.totalStock === 0 && "font-medium text-destructive",
+                      )}
+                    >
+                      {p.totalStock}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                      {p.soldCount}
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`Actions for ${p.name}`}
+                            />
+                          }
+                        >
+                          <EllipsisIcon className="size-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLinkItem
+                            render={
+                              <Link href={`/admin/products/${p.id}/edit`} />
+                            }
+                          >
+                            <PencilIcon className="size-4" />
+                            Edit
+                          </DropdownMenuLinkItem>
+                          <DropdownMenuLinkItem
+                            render={
+                              <Link
+                                href={`/products/${p.slug}`}
+                                target="_blank"
+                              />
+                            }
+                          >
+                            <ExternalLinkIcon className="size-4" />
+                            View in store
+                          </DropdownMenuLinkItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive data-highlighted:bg-destructive data-highlighted:text-white"
+                            onClick={() => {
+                              setDeleteError(null);
+                              setToDelete(p);
+                            }}
+                          >
+                            <Trash2Icon className="size-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+          </TableBody>
+        </Table>
+      )}
 
-      <p className="text-xs text-muted-foreground">
-        Showing {filtered.length} of {items.length} products
-      </p>
+      {meta && !error && (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            {meta.total} {meta.total === 1 ? "product" : "products"}
+            {meta.totalPages > 1 && ` · page ${meta.page} of ${meta.totalPages}`}
+          </p>
+          {meta.totalPages > 1 && (
+            <div className="flex gap-1">
+              <Button
+                variant="outline"
+                size="icon-sm"
+                aria-label="Previous page"
+                disabled={!meta.hasPrev || loading}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                <ChevronLeftIcon className="size-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                aria-label="Next page"
+                disabled={!meta.hasNext || loading}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                <ChevronRightIcon className="size-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       <AlertDialog
         open={toDelete !== null}
         onOpenChange={(open) => {
-          if (!open) setToDelete(null);
+          if (!open && !deleteBusy) setToDelete(null);
         }}
       >
         <AlertDialogContent>
           <AlertDialogTitle>Delete product?</AlertDialogTitle>
           <AlertDialogDescription>
             “{toDelete?.name}” and its variants and images will be removed
-            permanently. This is a design preview — nothing is sent to the
-            server yet.
+            permanently.
           </AlertDialogDescription>
+          {deleteError && <FormAlert>{deleteError}</FormAlert>}
           <AlertDialogFooter>
-            <AlertDialogClose render={<Button variant="outline" />}>
+            <AlertDialogClose
+              render={<Button variant="outline" disabled={deleteBusy} />}
+            >
               Cancel
             </AlertDialogClose>
             <Button
               variant="destructive"
-              onClick={() => {
-                const id = toDelete?.id;
-                setToDelete(null);
-                if (id) setItems((prev) => prev.filter((p) => p.id !== id));
-              }}
+              disabled={deleteBusy}
+              onClick={() => void confirmDelete()}
             >
-              Delete
+              {deleteBusy ? "Deleting…" : "Delete"}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
