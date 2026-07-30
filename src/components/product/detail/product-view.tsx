@@ -310,6 +310,12 @@ export function ProductView({ product }: { product: ProductDetail }) {
           </span>
         </div>
 
+        {product.shortDescription && (
+          <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
+            {product.shortDescription}
+          </p>
+        )}
+
         <div className="mt-5 flex items-baseline gap-3">
           <span className="text-3xl font-semibold">{formatPrice(price)}</span>
           {hasDiscount && (

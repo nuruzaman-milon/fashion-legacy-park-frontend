@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   AnimatePresence,
   motion,
@@ -23,6 +24,8 @@ const PUSH_EASE = [0.45, 0, 0.2, 1] as const;
 export interface ShowcaseSlide {
   src: string;
   alt: string;
+  /** Destination when the tile is clicked (product, category, collection…). */
+  href?: string;
 }
 
 interface RotationState {
@@ -203,6 +206,15 @@ export function HeroShowcase({
                         "radial-gradient(65% 50% at 97% 3%, oklch(0.8 0.12 75 / 0.5), oklch(0.65 0.1 65 / 0.16) 45%, transparent 72%)",
                     }}
                   />
+
+                  {/* Click-through for the slide currently on this tile. */}
+                  {slide.href && (
+                    <Link
+                      href={slide.href}
+                      aria-label={slide.alt || "View collection"}
+                      className="absolute inset-0 z-20 rounded-2xl outline-none focus-visible:ring-3 focus-visible:ring-white/70 focus-visible:ring-inset"
+                    />
+                  )}
 
                   {/* Warm the browser cache for the incoming slide so it never
                       pops in half-loaded mid-animation. */}

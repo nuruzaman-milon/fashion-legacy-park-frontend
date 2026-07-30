@@ -9,6 +9,7 @@ import {
   HomeIcon,
   PencilIcon,
   PlusIcon,
+  SearchIcon,
   Trash2Icon,
 } from "lucide-react";
 
@@ -31,6 +32,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -76,6 +85,15 @@ function buildTree(flat: AdminCategory[]): TreeNode[] {
   return roots;
 }
 
+type View = "all" | "home" | "active" | "hidden";
+
+const VIEW_OPTIONS: { value: View; label: string }[] = [
+  { value: "all", label: "All categories" },
+  { value: "home", label: "On homepage" },
+  { value: "active", label: "Active" },
+  { value: "hidden", label: "Hidden" },
+];
+
 function TreeSkeleton() {
   return (
     <div className="flex flex-col gap-1 py-1">
@@ -94,16 +112,108 @@ function TreeSkeleton() {
   );
 }
 
+function Thumb({ category }: { category: AdminCategory }) {
+  return category.image ? (
+    <Image
+      src={category.image}
+      alt=""
+      width={32}
+      height={32}
+      className="size-8 shrink-0 rounded-md object-cover"
+    />
+  ) : (
+    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-medium text-muted-foreground">
+      {category.name[0]}
+    </span>
+  );
+}
+
+function HomeBadge({ category }: { category: AdminCategory }) {
+  if (!category.showOnHome) return null;
+  return (
+    <Badge variant="secondary" className="gap-1">
+      <HomeIcon />#{category.homeSortOrder + 1}
+    </Badge>
+  );
+}
+
+function StatusBadge({ category }: { category: AdminCategory }) {
+  return category.isActive ? (
+    <Badge
+      variant="outline"
+      className="border-emerald-600/25 bg-emerald-600/10 text-emerald-700 dark:text-emerald-400"
+    >
+      Active
+    </Badge>
+  ) : (
+    <Badge variant="outline" className="text-muted-foreground">
+      Hidden
+    </Badge>
+  );
+}
+
+function RowActions({
+  category,
+  depth,
+  onDelete,
+}: {
+  category: AdminCategory;
+  depth: number;
+  onDelete: (category: AdminCategory) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Actions for ${category.name}`}
+          />
+        }
+      >
+        <EllipsisIcon className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuLinkItem
+          render={<Link href={`/admin/categories/${category.id}/edit`} />}
+        >
+          <PencilIcon className="size-4" />
+          Edit
+        </DropdownMenuLinkItem>
+        {depth < 2 && (
+          <DropdownMenuLinkItem
+            render={<Link href={`/admin/categories/new?parent=${category.id}`} />}
+          >
+            <PlusIcon className="size-4" />
+            Add subcategory
+          </DropdownMenuLinkItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="text-destructive data-highlighted:bg-destructive data-highlighted:text-white"
+          onClick={() => onDelete(category)}
+        >
+          <Trash2Icon className="size-4" />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 /**
- * Category list as an expandable tree — fetched flat from
- * `GET /admin/categories` and rebuilt from `parentId`. Deletes call the API;
- * a category that still has children or products is blocked up-front, the
- * same rule the backend enforces with a 409.
+ * Category list — an expandable tree by default; searching or picking a view
+ * switches to a flat list with ancestor paths, because matches can sit under
+ * collapsed (or filtered-out) parents. "On homepage" mirrors the tile order
+ * of the storefront's Shop-by-category section.
  */
 export function CategoryTree() {
   const [items, setItems] = React.useState<AdminCategory[] | null>(null);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
+  const [search, setSearch] = React.useState("");
+  const [view, setView] = React.useState<View>("all");
   const [toDelete, setToDelete] = React.useState<AdminCategory | null>(null);
   const [deleteBusy, setDeleteBusy] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState<string | null>(null);
@@ -130,6 +240,64 @@ export function CategoryTree() {
 
   const tree = React.useMemo(() => buildTree(items ?? []), [items]);
 
+  // Per-id lookups the flat view needs: subtree product totals, depth, and
+  // the ancestor path ("Women › Clothing").
+  const meta = React.useMemo(() => {
+    const totals = new Map<string, number>();
+    const walkTotals = (nodes: TreeNode[]) => {
+      for (const node of nodes) {
+        totals.set(node.id, node.totalProducts);
+        walkTotals(node.children);
+      }
+    };
+    walkTotals(tree);
+
+    const byId = new Map((items ?? []).map((c) => [c.id, c]));
+    const depths = new Map<string, number>();
+    const paths = new Map<string, string>();
+    for (const c of items ?? []) {
+      const parts: string[] = [];
+      let cursor = c;
+      while (cursor.parentId) {
+        const parent = byId.get(cursor.parentId);
+        if (!parent) break;
+        parts.unshift(parent.name);
+        cursor = parent;
+      }
+      depths.set(c.id, parts.length);
+      paths.set(c.id, parts.join(" › "));
+    }
+    return { totals, depths, paths };
+  }, [tree, items]);
+
+  const query = search.trim().toLowerCase();
+  const flatMode = view !== "all" || query !== "";
+
+  const filtered = React.useMemo(() => {
+    if (!flatMode || !items) return [];
+    const matches = items.filter((c) => {
+      if (view === "home" && !c.showOnHome) return false;
+      if (view === "active" && !c.isActive) return false;
+      if (view === "hidden" && c.isActive) return false;
+      if (
+        query &&
+        !c.name.toLowerCase().includes(query) &&
+        !c.slug.includes(query)
+      )
+        return false;
+      return true;
+    });
+    // Homepage view mirrors the storefront tile order; the rest read best
+    // grouped by their place in the tree.
+    return matches.sort((a, b) =>
+      view === "home"
+        ? a.homeSortOrder - b.homeSortOrder
+        : `${meta.paths.get(a.id)} ${a.name}`.localeCompare(
+            `${meta.paths.get(b.id)} ${b.name}`,
+          ),
+    );
+  }, [flatMode, items, view, query, meta.paths]);
+
   const toggle = (id: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -137,6 +305,11 @@ export function CategoryTree() {
       else next.add(id);
       return next;
     });
+
+  const requestDelete = (category: AdminCategory) => {
+    setDeleteError(null);
+    setToDelete(category);
+  };
 
   if (loadError) {
     return (
@@ -166,14 +339,16 @@ export function CategoryTree() {
     );
   }
 
-  const rows: { node: TreeNode; depth: number }[] = [];
-  const walk = (nodes: TreeNode[], depth: number) => {
-    for (const node of nodes) {
-      rows.push({ node, depth });
-      if (expanded.has(node.id)) walk(node.children, depth + 1);
-    }
-  };
-  walk(tree, 0);
+  const treeRows: { node: TreeNode; depth: number }[] = [];
+  if (!flatMode) {
+    const walk = (nodes: TreeNode[], depth: number) => {
+      for (const node of nodes) {
+        treeRows.push({ node, depth });
+        if (expanded.has(node.id)) walk(node.children, depth + 1);
+      }
+    };
+    walk(tree, 0);
+  }
 
   const blocked =
     toDelete !== null &&
@@ -201,6 +376,41 @@ export function CategoryTree() {
 
   return (
     <>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-48 flex-1 sm:max-w-xs">
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Search name or slug…"
+            aria-label="Search categories"
+            className="h-9 pl-8"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <Select
+          value={view}
+          items={VIEW_OPTIONS}
+          onValueChange={(v) => setView(v ?? "all")}
+        >
+          <SelectTrigger aria-label="Filter categories" className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {VIEW_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {flatMode && (
+          <p className="text-xs text-muted-foreground">
+            {filtered.length} of {items.length}
+          </p>
+        )}
+      </div>
+
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
@@ -212,131 +422,109 @@ export function CategoryTree() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map(({ node, depth }) => (
-            <TableRow key={node.id}>
-              <TableCell>
-                <div
-                  className="flex items-center gap-2"
-                  style={{ paddingLeft: `${depth * 1.75}rem` }}
-                >
-                  {node.children.length > 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => toggle(node.id)}
-                      aria-label={
-                        expanded.has(node.id)
-                          ? `Collapse ${node.name}`
-                          : `Expand ${node.name}`
-                      }
-                      aria-expanded={expanded.has(node.id)}
-                      className="flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    >
-                      <ChevronRightIcon
-                        className={cn(
-                          "size-4 transition-transform",
-                          expanded.has(node.id) && "rotate-90",
-                        )}
-                      />
-                    </button>
-                  ) : (
-                    <span className="size-5 shrink-0" />
-                  )}
-                  {node.image ? (
-                    <Image
-                      src={node.image}
-                      alt=""
-                      width={32}
-                      height={32}
-                      className="size-8 shrink-0 rounded-md object-cover"
-                    />
-                  ) : (
-                    <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-medium text-muted-foreground">
-                      {node.name[0]}
-                    </span>
-                  )}
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{node.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      /{node.slug}
-                    </p>
-                  </div>
-                </div>
-              </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {node.totalProducts}
-              </TableCell>
-              <TableCell className="text-center">
-                {node.showOnHome && (
-                  <Badge variant="secondary" className="gap-1">
-                    <HomeIcon />
-                    #{node.homeSortOrder + 1}
-                  </Badge>
-                )}
-              </TableCell>
-              <TableCell>
-                {node.isActive ? (
-                  <Badge
-                    variant="outline"
-                    className="border-emerald-600/25 bg-emerald-600/10 text-emerald-700 dark:text-emerald-400"
+          {!flatMode &&
+            treeRows.map(({ node, depth }) => (
+              <TableRow key={node.id}>
+                <TableCell>
+                  <div
+                    className="flex items-center gap-2"
+                    style={{ paddingLeft: `${depth * 1.75}rem` }}
                   >
-                    Active
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="text-muted-foreground">
-                    Hidden
-                  </Badge>
-                )}
-              </TableCell>
-              <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    render={
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`Actions for ${node.name}`}
-                      />
-                    }
-                  >
-                    <EllipsisIcon className="size-4" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLinkItem
-                      render={
-                        <Link href={`/admin/categories/${node.id}/edit`} />
-                      }
-                    >
-                      <PencilIcon className="size-4" />
-                      Edit
-                    </DropdownMenuLinkItem>
-                    {depth < 2 && (
-                      <DropdownMenuLinkItem
-                        render={
-                          <Link
-                            href={`/admin/categories/new?parent=${node.id}`}
-                          />
+                    {node.children.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => toggle(node.id)}
+                        aria-label={
+                          expanded.has(node.id)
+                            ? `Collapse ${node.name}`
+                            : `Expand ${node.name}`
                         }
+                        aria-expanded={expanded.has(node.id)}
+                        className="flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                       >
-                        <PlusIcon className="size-4" />
-                        Add subcategory
-                      </DropdownMenuLinkItem>
+                        <ChevronRightIcon
+                          className={cn(
+                            "size-4 transition-transform",
+                            expanded.has(node.id) && "rotate-90",
+                          )}
+                        />
+                      </button>
+                    ) : (
+                      <span className="size-5 shrink-0" />
                     )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className="text-destructive data-highlighted:bg-destructive data-highlighted:text-white"
-                      onClick={() => {
-                        setDeleteError(null);
-                        setToDelete(node);
-                      }}
-                    >
-                      <Trash2Icon className="size-4" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                    <Thumb category={node} />
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{node.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        /{node.slug}
+                      </p>
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {node.totalProducts}
+                </TableCell>
+                <TableCell className="text-center">
+                  <HomeBadge category={node} />
+                </TableCell>
+                <TableCell>
+                  <StatusBadge category={node} />
+                </TableCell>
+                <TableCell>
+                  <RowActions
+                    category={node}
+                    depth={depth}
+                    onDelete={requestDelete}
+                  />
+                </TableCell>
+              </TableRow>
+            ))}
+
+          {flatMode && filtered.length === 0 && (
+            <TableRow className="hover:bg-transparent">
+              <TableCell
+                colSpan={5}
+                className="py-10 text-center text-muted-foreground"
+              >
+                No categories match.
               </TableCell>
             </TableRow>
-          ))}
+          )}
+          {flatMode &&
+            filtered.map((category) => {
+              const path = meta.paths.get(category.id);
+              return (
+                <TableRow key={category.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Thumb category={category} />
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{category.name}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {path ? `${path} · ` : ""}/{category.slug}
+                        </p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {meta.totals.get(category.id) ?? category._count.products}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <HomeBadge category={category} />
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge category={category} />
+                  </TableCell>
+                  <TableCell>
+                    <RowActions
+                      category={category}
+                      depth={meta.depths.get(category.id) ?? 0}
+                      onDelete={requestDelete}
+                    />
+                  </TableCell>
+                </TableRow>
+              );
+            })}
         </TableBody>
       </Table>
 

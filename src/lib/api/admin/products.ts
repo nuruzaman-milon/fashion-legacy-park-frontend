@@ -125,6 +125,8 @@ export interface ProductPayload {
   shortDescription?: string | null;
   description?: string | null;
   videoUrl?: string | null;
+  /** Key-value rows rendered as the Specifications table on the storefront. */
+  specifications?: Record<string, string> | null;
   tags?: string[];
   categoryId?: string;
   brandId?: string | null;

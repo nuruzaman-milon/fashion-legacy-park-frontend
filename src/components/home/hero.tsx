@@ -10,10 +10,20 @@ import {
 import type { HomeBanner } from "@/types/catalog";
 
 export function Hero({ banner }: { banner: HomeBanner }) {
+  // Every tile is clickable: the main image follows the CTA, supporting
+  // images use their own link (a product or category) when the admin set one.
   const slides: ShowcaseSlide[] = banner.image
     ? [
-        { src: banner.image, alt: banner.imageAlt ?? banner.title },
-        ...(banner.supportingImages ?? []),
+        {
+          src: banner.image,
+          alt: banner.imageAlt ?? banner.title,
+          href: banner.href,
+        },
+        ...(banner.supportingImages ?? []).map((img) => ({
+          src: img.src,
+          alt: img.alt,
+          href: img.href ?? banner.href,
+        })),
       ]
     : [];
 

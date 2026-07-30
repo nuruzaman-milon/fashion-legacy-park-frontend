@@ -1,12 +1,16 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Trash2Icon, UploadIcon } from "lucide-react";
 import * as z from "zod";
 
+import {
+  emptySlot,
+  ImagePicker,
+  slotChanged,
+  type ImageSlot,
+} from "@/components/admin/image-picker";
 import { FieldError } from "@/components/auth/field-error";
 import { FormAlert } from "@/components/auth/form-alert";
 import { Button } from "@/components/ui/button";
@@ -34,7 +38,7 @@ import {
   updateCategory,
   type CategoryPayload,
 } from "@/lib/api/admin/categories";
-import { MAX_UPLOAD_BYTES, uploadImage } from "@/lib/api/admin/uploads";
+import { uploadImage } from "@/lib/api/admin/uploads";
 import { ApiError } from "@/lib/api/client";
 import type { AdminCategory } from "@/types/admin";
 
@@ -71,144 +75,11 @@ export function slugify(name: string): string {
 
 const NO_PARENT = "__root__";
 
-/**
- * One image field. `current` is the stored URL; picking a file stages it
- * (uploaded on submit), `removed` clears the field. `changed` decides
- * whether the PATCH mentions this field at all.
- */
-interface ImageSlot {
-  current: string | null;
-  file: File | null;
-  preview: string | null;
-  removed: boolean;
-  error: string | null;
-}
-
-const emptySlot = (current: string | null): ImageSlot => ({
-  current,
-  file: null,
-  preview: null,
-  removed: false,
-  error: null,
-});
-
-const slotChanged = (slot: ImageSlot) => slot.file !== null || slot.removed;
-const slotShows = (slot: ImageSlot) =>
-  slot.preview ?? (slot.removed ? null : slot.current);
-
 interface FormState {
   fieldErrors?: Record<string, string[]>;
   formError?: string;
 }
 
-function ImagePicker({
-  id,
-  label,
-  hint,
-  slot,
-  onChange,
-  previewClass,
-}: {
-  id: string;
-  label: string;
-  hint: string;
-  slot: ImageSlot;
-  onChange: (slot: ImageSlot) => void;
-  previewClass: string;
-}) {
-  const inputRef = React.useRef<HTMLInputElement>(null);
-  const shown = slotShows(slot);
-
-  function pick(file: File) {
-    if (!file.type.startsWith("image/")) {
-      onChange({ ...slot, error: "Please choose an image file" });
-      return;
-    }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      onChange({ ...slot, error: "Images can be at most 2 MB" });
-      return;
-    }
-    onChange({
-      ...slot,
-      file,
-      preview: URL.createObjectURL(file),
-      removed: false,
-      error: null,
-    });
-  }
-
-  return (
-    <div className="space-y-1.5">
-      <p className="text-sm font-medium">{label}</p>
-      <div className="flex items-center gap-3">
-        {shown ? (
-          <Image
-            src={shown}
-            alt=""
-            width={96}
-            height={96}
-            unoptimized={shown.startsWith("blob:")}
-            className={previewClass}
-          />
-        ) : (
-          <div
-            className={`${previewClass} flex items-center justify-center bg-muted text-xs text-muted-foreground`}
-          >
-            None
-          </div>
-        )}
-        <div className="flex flex-col items-start gap-1.5">
-          <input
-            ref={inputRef}
-            id={id}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              e.target.value = "";
-              if (file) pick(file);
-            }}
-          />
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => inputRef.current?.click()}
-            >
-              <UploadIcon className="size-3.5" />
-              {shown ? "Replace" : "Upload"}
-            </Button>
-            {shown && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() =>
-                  onChange({
-                    ...slot,
-                    file: null,
-                    preview: null,
-                    removed: slot.current !== null,
-                    error: null,
-                  })
-                }
-              >
-                <Trash2Icon className="size-3.5" />
-                Remove
-              </Button>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">{hint}</p>
-          {slot.error && (
-            <p className="text-xs text-destructive">{slot.error}</p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function FormSkeleton() {
   return (

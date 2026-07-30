@@ -30,7 +30,11 @@ export async function generateMetadata({
   if (!product) return {};
   return {
     title: product.title,
-    description: product.description.slice(0, 155),
+    // The short description IS the summary; the long copy is the fallback.
+    description: (product.shortDescription ?? product.description).slice(
+      0,
+      155,
+    ),
   };
 }
 
@@ -83,7 +87,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 <h2 className="font-heading text-xl font-medium tracking-tight sm:text-2xl">
                   About this product
                 </h2>
-                <p className="mt-4 max-w-2xl text-sm leading-relaxed text-foreground/80 sm:text-base">
+                {/* pre-line: admins separate paragraphs with blank lines. */}
+                <p className="mt-4 max-w-2xl text-sm leading-relaxed whitespace-pre-line text-foreground/80 sm:text-base">
                   {product.description}
                 </p>
               </div>

@@ -103,6 +103,8 @@ export interface ProductReview {
 }
 
 export interface ProductDetail extends ProductListItem {
+  /** One-line summary shown under the title; also the SEO meta fallback. */
+  shortDescription: string | null;
   description: string;
   /** `Product.specifications` Json — display-only per FEATURE.md. */
   specifications: Record<string, string>;
@@ -125,8 +127,8 @@ export interface HomeBanner {
   image: string | null;
   /** Descriptive alt/caption for the primary image (frontend-only for now). */
   imageAlt?: string | null;
-  /** Extra artwork for editorial hero collages (frontend-only for now). */
-  supportingImages?: { src: string; alt: string }[];
+  /** Extra artwork for editorial hero collages; `href` makes a tile clickable. */
+  supportingImages?: { src: string; alt: string; href?: string | null }[];
 }
 
 export interface HomeData {

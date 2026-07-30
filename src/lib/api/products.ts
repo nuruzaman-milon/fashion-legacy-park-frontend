@@ -267,7 +267,8 @@ export async function getProductBySlug(
 
   return {
     ...mapApiProduct(api),
-    description: api.description ?? api.shortDescription ?? "",
+    shortDescription: api.shortDescription,
+    description: api.description ?? "",
     specifications: api.specifications ?? {},
     options: api.productOptions
       .map(({ option }) => ({

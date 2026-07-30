@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { PlusIcon, Trash2Icon } from "lucide-react";
 import * as z from "zod";
 
 import { ProductStatusBadge } from "@/components/admin/products/product-status-badge";
@@ -182,10 +183,25 @@ export function ProductForm({ initial }: { initial?: AdminProductDetail }) {
     metaKeywords: initial?.metaKeywords ?? "",
   }));
 
+  // Specification rows edit as an ordered list; they serialize to the
+  // Record the API stores on submit.
+  const [specs, setSpecs] = React.useState<{ key: string; value: string }[]>(
+    () =>
+      Object.entries(initial?.specifications ?? {}).map(([key, value]) => ({
+        key,
+        value,
+      })),
+  );
+
   const set = <K extends keyof typeof values>(
     key: K,
     value: (typeof values)[K],
   ) => setValues((v) => ({ ...v, [key]: value }));
+
+  const patchSpec = (index: number, delta: Partial<{ key: string; value: string }>) =>
+    setSpecs((rows) =>
+      rows.map((row, i) => (i === index ? { ...row, ...delta } : row)),
+    );
 
   const statusItems = React.useMemo(() => {
     const statuses = SETTABLE_STATUSES.includes(values.status)
@@ -213,11 +229,23 @@ export function ProductForm({ initial }: { initial?: AdminProductDetail }) {
       return t === "" ? null : t;
     };
 
+    const specRows = specs
+      .map((row) => ({ key: row.key.trim(), value: row.value.trim() }))
+      .filter((row) => row.key !== "");
+    const specKeys = new Set(specRows.map((row) => row.key));
+    if (specKeys.size !== specRows.length) {
+      return { formError: "Two specification rows have the same name." };
+    }
+
     const payload: ProductPayload = {
       name: parsed.data.name,
       shortDescription: trimOrNull(values.shortDescription),
       description: trimOrNull(values.description),
       videoUrl: trimOrNull(values.videoUrl),
+      specifications:
+        specRows.length > 0
+          ? Object.fromEntries(specRows.map((row) => [row.key, row.value]))
+          : null,
       categoryId: values.categoryId,
       brandId: values.brandId,
       isFeatured: values.isFeatured,
@@ -382,6 +410,59 @@ export function ProductForm({ initial }: { initial?: AdminProductDetail }) {
                 <FieldError messages={state?.fieldErrors?.videoUrl} />
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Specifications</CardTitle>
+            <CardDescription>
+              Shown as a table on the product page — e.g. Fabric: Taffeta,
+              Care: Machine wash.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {specs.map((row, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <Input
+                  aria-label={`Specification ${index + 1} name`}
+                  placeholder="Fabric"
+                  className="h-9 w-40 shrink-0"
+                  value={row.key}
+                  onChange={(e) => patchSpec(index, { key: e.target.value })}
+                />
+                <Input
+                  aria-label={`Specification ${index + 1} value`}
+                  placeholder="Taffeta"
+                  className="h-9"
+                  value={row.value}
+                  onChange={(e) => patchSpec(index, { value: e.target.value })}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Remove specification ${index + 1}`}
+                  onClick={() =>
+                    setSpecs((rows) => rows.filter((_, i) => i !== index))
+                  }
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2Icon className="size-4" />
+                </Button>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setSpecs((rows) => [...rows, { key: "", value: "" }])
+              }
+            >
+              <PlusIcon className="size-3.5" />
+              Add row
+            </Button>
           </CardContent>
         </Card>
 

@@ -52,7 +52,7 @@ interface ApiBanner {
   subtitle: string | null;
   desktopImageUrl: string | null;
   imageAlt: string | null;
-  supportingImages: { src: string; alt: string }[] | null;
+  supportingImages: { src: string; alt: string; href?: string | null }[] | null;
   buttonText: string;
   buttonLink: string;
 }
