@@ -59,6 +59,9 @@ export interface OrderSummary {
 }
 
 export interface OrderDetail extends OrderSummary {
+  /** Account contact snapshot taken at purchase time. */
+  email: string;
+  phone: string;
   shipReceiverName: string;
   shipPhone: string;
   shipDistrict: string;

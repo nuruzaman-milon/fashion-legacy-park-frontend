@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeftIcon, CheckIcon } from "lucide-react";
+import { ArrowLeftIcon, CheckIcon, FileTextIcon } from "lucide-react";
 
 import {
   AlertDialog,
@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { FormAlert } from "@/components/auth/form-alert";
+import { InvoiceDialog } from "@/components/shared/invoice/invoice-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ProductThumb } from "@/components/product/product-thumb";
@@ -54,6 +55,7 @@ export function AdminOrderDetailView({ orderId }: { orderId: string }) {
   const [actionError, setActionError] = React.useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = React.useState(false);
   const [cancelReason, setCancelReason] = React.useState("");
+  const [invoiceOpen, setInvoiceOpen] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -135,6 +137,15 @@ export function AdminOrderDetailView({ orderId }: { orderId: string }) {
             Placed {formatDateTime(order.createdAt)}
           </span>
           <div className="ml-auto flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => setInvoiceOpen(true)}
+            >
+              <FileTextIcon data-icon="inline-start" />
+              Invoice
+            </Button>
             {actions.map((action) => (
               <Button
                 key={action.status}
@@ -280,6 +291,10 @@ export function AdminOrderDetailView({ orderId }: { orderId: string }) {
           </p>
         </div>
       </div>
+
+      {invoiceOpen && (
+        <InvoiceDialog order={order} onClose={() => setInvoiceOpen(false)} />
+      )}
 
       <AlertDialog
         open={cancelOpen}

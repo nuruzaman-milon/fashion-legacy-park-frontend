@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeftIcon, CheckIcon, StarIcon } from "lucide-react";
+import { ArrowLeftIcon, CheckIcon, FileTextIcon, StarIcon } from "lucide-react";
 
 import {
   AlertDialog,
@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormAlert } from "@/components/auth/form-alert";
+import { InvoiceDialog } from "@/components/shared/invoice/invoice-dialog";
 import { OrderStatusBadge } from "@/components/account/order-status-badge";
 import { Button } from "@/components/ui/button";
 import { ProductThumb } from "@/components/product/product-thumb";
@@ -56,6 +57,7 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
   const [reviewItem, setReviewItem] = React.useState<OrderItemInfo | null>(
     null,
   );
+  const [invoiceOpen, setInvoiceOpen] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -142,16 +144,25 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
           <span className="text-xs text-muted-foreground">
             Placed {formatDateTime(order.createdAt)}
           </span>
-          {cancellable && (
+          <div className="ml-auto flex gap-2">
             <Button
               variant="outline"
               size="sm"
-              className="ml-auto"
-              onClick={() => setCancelOpen(true)}
+              onClick={() => setInvoiceOpen(true)}
             >
-              Cancel order
+              <FileTextIcon data-icon="inline-start" />
+              Invoice
             </Button>
-          )}
+            {cancellable && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCancelOpen(true)}
+              >
+                Cancel order
+              </Button>
+            )}
+          </div>
         </div>
         {order.orderStatus === "CANCELLED" && order.cancelReason && (
           <p className="mt-2 text-sm text-muted-foreground">
@@ -245,6 +256,10 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
           ))}
         </ul>
       </div>
+
+      {invoiceOpen && (
+        <InvoiceDialog order={order} onClose={() => setInvoiceOpen(false)} />
+      )}
 
       {reviewItem && (
         <ReviewDialog
