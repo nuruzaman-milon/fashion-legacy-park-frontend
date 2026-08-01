@@ -8,6 +8,7 @@ import {
   CheckIcon,
   CreditCardIcon,
   HandCoinsIcon,
+  PlusIcon,
   RefreshCcwIcon,
   SmartphoneIcon,
   TruckIcon,
@@ -34,25 +35,20 @@ import { cn } from "@/lib/utils";
 import type { CartLine } from "@/lib/api/cart";
 import { ApiError } from "@/lib/api/client";
 import { placeOrder } from "@/lib/api/orders";
+import {
+  createAddress,
+  listAddresses,
+  type SavedAddress,
+} from "@/lib/api/addresses";
+import {
+  ADDRESS_LABELS,
+  labelIcon,
+} from "@/components/account/addresses-view";
+import { DISTRICTS, districtLabel } from "@/lib/bd-geo";
 
 const FREE_DELIVERY_MIN = 2000;
 const DHAKA_FEE = 80;
 const OUTSIDE_FEE = 130;
-
-const DISTRICTS = [
-  { value: "dhaka", label: "Dhaka" },
-  { value: "gazipur", label: "Gazipur" },
-  { value: "narayanganj", label: "Narayanganj" },
-  { value: "chattogram", label: "Chattogram" },
-  { value: "coxs-bazar", label: "Cox's Bazar" },
-  { value: "cumilla", label: "Cumilla" },
-  { value: "sylhet", label: "Sylhet" },
-  { value: "rajshahi", label: "Rajshahi" },
-  { value: "khulna", label: "Khulna" },
-  { value: "barishal", label: "Barishal" },
-  { value: "rangpur", label: "Rangpur" },
-  { value: "mymensingh", label: "Mymensingh" },
-];
 
 const PAYMENT_METHODS = [
   {
@@ -234,14 +230,49 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
   const [submitting, setSubmitting] = React.useState(false);
   const [placed, setPlaced] = React.useState<PlacedOrder | null>(null);
 
+  // The address book: pick a saved address, or "new" for the manual form.
+  const [addresses, setAddresses] = React.useState<SavedAddress[] | null>(null);
+  const [selectedAddressId, setSelectedAddressId] = React.useState<
+    string | "new" | null
+  >(null);
+  const [saveAddress, setSaveAddress] = React.useState(false);
+  const [saveLabel, setSaveLabel] = React.useState<string>("Home");
+
+  React.useEffect(() => {
+    let cancelled = false;
+    listAddresses()
+      .then((list) => {
+        if (cancelled) return;
+        setAddresses(list);
+        // The default (first in the list) is pre-selected; an empty book
+        // drops straight into the manual form.
+        setSelectedAddressId(list[0]?.id ?? "new");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAddresses([]);
+        setSelectedAddressId("new");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectedAddress =
+    selectedAddressId !== "new"
+      ? (addresses?.find((a) => a.id === selectedAddressId) ?? null)
+      : null;
+  const usingNewAddress = selectedAddressId === "new";
+
   const itemCount = lines.reduce((n, line) => n + line.quantity, 0);
   const subtotal = lines.reduce(
     (sum, line) => sum + line.unitPrice * line.quantity,
     0
   );
-  const insideDhaka = district === "dhaka";
+  const activeDistrict = selectedAddress?.district ?? district;
+  const insideDhaka = activeDistrict === "dhaka";
   const deliveryFee =
-    district === null
+    activeDistrict === null
       ? null
       : insideDhaka
         ? subtotal >= FREE_DELIVERY_MIN
@@ -252,31 +283,64 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
 
   const submitOrder = async (event: React.FormEvent) => {
     event.preventDefault();
-    const cleanPhone = phone.replace(/[\s-]/g, "");
-    const next: Record<string, string> = {};
-    if (!name.trim()) next.name = "Enter your full name";
-    if (!/^01[3-9]\d{8}$/.test(cleanPhone))
-      next.phone = "Enter a valid 11-digit number, e.g. 01712345678";
-    if (email.trim() && !/^\S+@\S+\.\S+$/.test(email.trim()))
-      next.email = "Enter a valid email address";
-    if (!district) next.district = "Select your district";
-    if (address.trim().length < 10)
-      next.address = "Write your full address — house, road, area";
-    setErrors(next);
-    if (Object.keys(next).length > 0) return;
+
+    let shipping: {
+      receiverName: string;
+      phone: string;
+      district: string;
+      address: string;
+      addressId?: string;
+    };
+
+    if (selectedAddress) {
+      shipping = {
+        receiverName: selectedAddress.receiverName,
+        phone: selectedAddress.phone,
+        district: selectedAddress.district,
+        address: selectedAddress.address,
+        addressId: selectedAddress.id,
+      };
+      setErrors({});
+    } else {
+      const cleanPhone = phone.replace(/[\s-]/g, "");
+      const next: Record<string, string> = {};
+      if (!name.trim()) next.name = "Enter your full name";
+      if (!/^01[3-9]\d{8}$/.test(cleanPhone))
+        next.phone = "Enter a valid 11-digit number, e.g. 01712345678";
+      if (email.trim() && !/^\S+@\S+\.\S+$/.test(email.trim()))
+        next.email = "Enter a valid email address";
+      if (!district) next.district = "Select your district";
+      if (address.trim().length < 10)
+        next.address = "Write your full address — house, road, area";
+      setErrors(next);
+      if (Object.keys(next).length > 0) return;
+      shipping = {
+        receiverName: name.trim(),
+        phone: cleanPhone,
+        district: district!,
+        address: address.trim(),
+      };
+    }
 
     setSubmitting(true);
     try {
       // The backend re-resolves prices from the server-side cart (flash
       // deals included), claims stock and empties the cart in one
       // transaction — what returns is the real invoice.
-      const order = await placeOrder({
-        receiverName: name.trim(),
-        phone: cleanPhone,
-        district: district!,
-        address: address.trim(),
-        paymentMethod: "COD",
-      });
+      const order = await placeOrder({ ...shipping, paymentMethod: "COD" });
+
+      // The order is already placed — a failed address save must not turn
+      // the success screen into an error.
+      if (usingNewAddress && saveAddress) {
+        await createAddress({
+          receiverName: shipping.receiverName,
+          phone: shipping.phone,
+          label: saveLabel,
+          district: shipping.district,
+          address: shipping.address,
+        }).catch(() => {});
+      }
+
       reloadCart();
       setPlaced({
         id: order.id,
@@ -284,8 +348,7 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
         name: order.shipReceiverName,
         phone: order.shipPhone,
         address: order.shipAddress,
-        districtLabel:
-          DISTRICTS.find((d) => d.value === district)?.label ?? district!,
+        districtLabel: districtLabel(shipping.district),
         paymentLabel:
           PAYMENT_METHODS.find((m) => m.id === payment)?.label ?? payment,
         total: Number(order.total),
@@ -386,6 +449,91 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
         <div className="min-w-0 flex-1 space-y-6">
           <section className="rounded-2xl border bg-card p-6">
             <SectionHeading step={1} title="Delivery Details" />
+
+            {addresses === null && (
+              <Skeleton className="mt-5 h-36 w-full rounded-xl" />
+            )}
+
+            {addresses && addresses.length > 0 && (
+              <div className="mt-5 space-y-3">
+                {addresses.map((saved) => {
+                  const Icon = labelIcon(saved.label);
+                  const selected = selectedAddressId === saved.id;
+                  return (
+                    <label
+                      key={saved.id}
+                      className={cn(
+                        "flex cursor-pointer items-start gap-3.5 rounded-xl border p-4 transition-all",
+                        selected
+                          ? "border-brand bg-brand/5 ring-1 ring-brand/30"
+                          : "hover:border-foreground/30"
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="ship-address"
+                        checked={selected}
+                        onChange={() => setSelectedAddressId(saved.id)}
+                        className="sr-only"
+                      />
+                      <Icon
+                        className={cn(
+                          "mt-0.5 size-5 shrink-0",
+                          selected ? "text-brand" : "text-muted-foreground"
+                        )}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                          {saved.receiverName}
+                          {saved.label && (
+                            <Badge variant="outline">{saved.label}</Badge>
+                          )}
+                          {saved.isDefault && (
+                            <Badge
+                              variant="outline"
+                              className="border-brand/30 bg-brand/10 text-brand"
+                            >
+                              Default
+                            </Badge>
+                          )}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          {saved.address}, {districtLabel(saved.district)} ·{" "}
+                          {saved.phone}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+                <label
+                  className={cn(
+                    "flex cursor-pointer items-center gap-3.5 rounded-xl border border-dashed p-4 transition-all",
+                    usingNewAddress
+                      ? "border-brand bg-brand/5 ring-1 ring-brand/30"
+                      : "hover:border-foreground/30"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="ship-address"
+                    checked={usingNewAddress}
+                    onChange={() => setSelectedAddressId("new")}
+                    className="sr-only"
+                  />
+                  <PlusIcon
+                    className={cn(
+                      "size-5 shrink-0",
+                      usingNewAddress ? "text-brand" : "text-muted-foreground"
+                    )}
+                  />
+                  <span className="text-sm font-medium">
+                    Use a new address
+                  </span>
+                </label>
+              </div>
+            )}
+
+            {addresses !== null && usingNewAddress && (
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <Field label="Full name" htmlFor="name" error={errors.name}>
                 <Input
@@ -467,7 +615,49 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
                 </Field>
               </div>
             </div>
-            {district && (
+            )}
+
+            {addresses !== null && usingNewAddress && (
+              <div className="mt-4 space-y-2.5">
+                <label className="flex cursor-pointer items-center gap-2.5">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-primary"
+                    checked={saveAddress}
+                    onChange={(e) => setSaveAddress(e.target.checked)}
+                  />
+                  <span className="text-sm">
+                    Save this address for faster checkout next time
+                  </span>
+                </label>
+                {saveAddress && (
+                  <div className="flex gap-2 pl-6.5">
+                    {ADDRESS_LABELS.map((option) => {
+                      const Icon = labelIcon(option);
+                      const selected = saveLabel === option;
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => setSaveLabel(option)}
+                          className={cn(
+                            "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
+                            selected
+                              ? "border-brand bg-brand/10 text-brand"
+                              : "text-muted-foreground hover:border-foreground/30"
+                          )}
+                        >
+                          <Icon className="size-3" />
+                          {option}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeDistrict && (
               <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
                 <TruckIcon className="size-4 shrink-0 text-brand" />
                 {insideDhaka

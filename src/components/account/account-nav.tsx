@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  MapPinIcon,
   MonitorSmartphoneIcon,
   PackageIcon,
   ShieldCheckIcon,
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils";
 const LINKS = [
   { href: "/account", label: "Profile", icon: UserRoundIcon },
   { href: "/account/orders", label: "Orders", icon: PackageIcon },
+  { href: "/account/addresses", label: "Addresses", icon: MapPinIcon },
   { href: "/account/security", label: "Security", icon: ShieldCheckIcon },
   { href: "/account/sessions", label: "Devices", icon: MonitorSmartphoneIcon },
 ];
