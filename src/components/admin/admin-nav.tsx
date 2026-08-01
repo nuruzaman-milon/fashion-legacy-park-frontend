@@ -7,6 +7,7 @@ import {
   ImagesIcon,
   LayersIcon,
   LayoutDashboardIcon,
+  MessageCircleIcon,
   PackageIcon,
   ShoppingBagIcon,
   SparklesIcon,
@@ -55,6 +56,7 @@ const NAV_GROUPS: { label: string | null; items: AdminNavItem[] }[] = [
     items: [
       { href: "/admin/orders", label: "Orders", icon: ShoppingBagIcon },
       { href: "/admin/reviews", label: "Reviews", icon: StarIcon },
+      { href: "/admin/chats", label: "Chats", icon: MessageCircleIcon },
     ],
   },
   {
