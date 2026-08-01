@@ -1,0 +1,109 @@
+import { apiFetch } from "./client";
+import type { Paginated } from "@/types/admin";
+
+/**
+ * Customer orders (`/orders`, bearer — docs: backend modules/order). Placing
+ * an order consumes the server-side cart: prices re-resolve there (flash
+ * deals included), stock is claimed conditionally, and the cart empties on
+ * success — reload the shop provider afterwards.
+ */
+
+export type OrderStatus =
+  | "PENDING"
+  | "CONFIRMED"
+  | "PROCESSING"
+  | "SHIPPED"
+  | "DELIVERED"
+  | "CANCELLED"
+  | "RETURNED";
+
+export type PaymentStatus =
+  | "PENDING"
+  | "PAID"
+  | "FAILED"
+  | "REFUNDED"
+  | "PARTIALLY_REFUNDED";
+
+export interface OrderItemInfo {
+  id: string;
+  productId: string | null;
+  title: string;
+  variantName: string | null;
+  sku?: string;
+  quantity: number;
+  /** Prisma Decimal → string. */
+  unitPrice: string;
+  totalPrice?: string;
+  image: string | null;
+  product?: { slug: string } | null;
+}
+
+export interface OrderSummary {
+  id: string;
+  invoiceNo: string;
+  orderStatus: OrderStatus;
+  paymentStatus: PaymentStatus;
+  paymentMethod: "COD" | "BKASH" | "SSLCOMMERZ";
+  subtotal: string;
+  shippingCharge: string;
+  tax: string;
+  total: string;
+  createdAt: string;
+  items: OrderItemInfo[];
+}
+
+export interface OrderDetail extends OrderSummary {
+  shipReceiverName: string;
+  shipPhone: string;
+  shipDistrict: string;
+  shipAddress: string;
+  note: string | null;
+  cancelReason: string | null;
+  confirmedAt: string | null;
+  shippedAt: string | null;
+  deliveredAt: string | null;
+  cancelledAt: string | null;
+  statusHistory: {
+    id: string;
+    fromStatus: OrderStatus | null;
+    toStatus: OrderStatus;
+    note: string | null;
+    createdAt: string;
+  }[];
+}
+
+export interface PlaceOrderPayload {
+  receiverName: string;
+  phone: string;
+  district: string;
+  address: string;
+  paymentMethod: "COD";
+  note?: string;
+}
+
+export async function placeOrder(
+  payload: PlaceOrderPayload,
+): Promise<OrderDetail> {
+  return apiFetch<OrderDetail>("/orders", { method: "POST", body: payload });
+}
+
+export async function listMyOrders(
+  page = 1,
+): Promise<Paginated<OrderSummary>> {
+  return apiFetch<Paginated<OrderSummary>>(`/orders?page=${page}&limit=10`);
+}
+
+export async function getMyOrder(id: string): Promise<OrderDetail> {
+  return apiFetch<OrderDetail>(`/orders/${id}`);
+}
+
+/** Allowed while PENDING or CONFIRMED — after that it's a return, not an undo. */
+export async function cancelMyOrder(
+  id: string,
+  reason?: string,
+): Promise<OrderDetail> {
+  return apiFetch<OrderDetail>(`/orders/${id}/cancel`, {
+    method: "POST",
+    body: { ...(reason && { reason }) },
+  });
+}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   MonitorSmartphoneIcon,
+  PackageIcon,
   ShieldCheckIcon,
   UserRoundIcon,
 } from "lucide-react";
@@ -12,6 +13,7 @@ import { cn } from "@/lib/utils";
 
 const LINKS = [
   { href: "/account", label: "Profile", icon: UserRoundIcon },
+  { href: "/account/orders", label: "Orders", icon: PackageIcon },
   { href: "/account/security", label: "Security", icon: ShieldCheckIcon },
   { href: "/account/sessions", label: "Devices", icon: MonitorSmartphoneIcon },
 ];
@@ -25,7 +27,8 @@ export function AccountNav() {
       className="flex gap-1 overflow-x-auto lg:flex-col"
     >
       {LINKS.map(({ href, label, icon: Icon }) => {
-        const active = pathname === href;
+        const active =
+          href === "/account" ? pathname === href : pathname.startsWith(href);
         return (
           <Link
             key={href}

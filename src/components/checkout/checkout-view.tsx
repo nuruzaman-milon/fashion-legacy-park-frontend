@@ -32,6 +32,8 @@ import { ProductThumb } from "@/components/product/product-thumb";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { CartLine } from "@/lib/api/cart";
+import { ApiError } from "@/lib/api/client";
+import { placeOrder } from "@/lib/api/orders";
 
 const FREE_DELIVERY_MIN = 2000;
 const DHAKA_FEE = 80;
@@ -77,7 +79,9 @@ const PAYMENT_METHODS = [
 type PaymentId = (typeof PAYMENT_METHODS)[number]["id"];
 
 interface PlacedOrder {
-  orderId: string;
+  /** Database id — links to the order page. */
+  id: string;
+  invoiceNo: string;
   name: string;
   phone: string;
   address: string;
@@ -173,8 +177,8 @@ function CheckoutSkeleton() {
 
 /**
  * Fetches the shopper's cart and gates on login, then hands the buyable
- * lines to the form. Order placement itself is still simulated — the order
- * module is the next backend phase.
+ * lines to the form. Placement is real: POST /orders consumes the server
+ * cart, re-resolves prices and returns the invoice.
  */
 export function CheckoutView() {
   const { status } = useAuth();
@@ -219,6 +223,7 @@ export function CheckoutView() {
 }
 
 function CheckoutForm({ lines }: { lines: CartLine[] }) {
+  const { reloadCart } = useShop();
   const [name, setName] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [email, setEmail] = React.useState("");
@@ -226,6 +231,7 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
   const [address, setAddress] = React.useState("");
   const [payment, setPayment] = React.useState<PaymentId>("cod");
   const [errors, setErrors] = React.useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = React.useState(false);
   const [placed, setPlaced] = React.useState<PlacedOrder | null>(null);
 
   const itemCount = lines.reduce((n, line) => n + line.quantity, 0);
@@ -244,11 +250,12 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
         : OUTSIDE_FEE;
   const total = subtotal + (deliveryFee ?? 0);
 
-  const placeOrder = (event: React.FormEvent) => {
+  const submitOrder = async (event: React.FormEvent) => {
     event.preventDefault();
+    const cleanPhone = phone.replace(/[\s-]/g, "");
     const next: Record<string, string> = {};
     if (!name.trim()) next.name = "Enter your full name";
-    if (!/^01\d{9}$/.test(phone.replace(/[\s-]/g, "")))
+    if (!/^01[3-9]\d{8}$/.test(cleanPhone))
       next.phone = "Enter a valid 11-digit number, e.g. 01712345678";
     if (email.trim() && !/^\S+@\S+\.\S+$/.test(email.trim()))
       next.email = "Enter a valid email address";
@@ -258,19 +265,46 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
-    setPlaced({
-      orderId: `FL-${Date.now().toString().slice(-6)}`,
-      name: name.trim(),
-      phone: phone.replace(/[\s-]/g, ""),
-      address: address.trim(),
-      districtLabel:
-        DISTRICTS.find((d) => d.value === district)?.label ?? district!,
-      paymentLabel:
-        PAYMENT_METHODS.find((m) => m.id === payment)?.label ?? payment,
-      total,
-      insideDhaka,
-    });
-    window.scrollTo({ top: 0 });
+    setSubmitting(true);
+    try {
+      // The backend re-resolves prices from the server-side cart (flash
+      // deals included), claims stock and empties the cart in one
+      // transaction — what returns is the real invoice.
+      const order = await placeOrder({
+        receiverName: name.trim(),
+        phone: cleanPhone,
+        district: district!,
+        address: address.trim(),
+        paymentMethod: "COD",
+      });
+      reloadCart();
+      setPlaced({
+        id: order.id,
+        invoiceNo: order.invoiceNo,
+        name: order.shipReceiverName,
+        phone: order.shipPhone,
+        address: order.shipAddress,
+        districtLabel:
+          DISTRICTS.find((d) => d.value === district)?.label ?? district!,
+        paymentLabel:
+          PAYMENT_METHODS.find((m) => m.id === payment)?.label ?? payment,
+        total: Number(order.total),
+        insideDhaka,
+      });
+      window.scrollTo({ top: 0 });
+    } catch (error) {
+      // Stock or flash-cap conflicts arrive as 409s with a human message;
+      // the cart may have changed underneath, so refresh it too.
+      reloadCart();
+      setErrors({
+        submit:
+          error instanceof ApiError
+            ? error.message
+            : "Could not place the order. Please try again.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (placed) {
@@ -286,7 +320,7 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
           <p className="mt-2 text-sm text-muted-foreground">
             Order{" "}
             <span className="font-semibold text-foreground">
-              #{placed.orderId}
+              #{placed.invoiceNo}
             </span>{" "}
             · We’ll call {placed.phone} shortly to confirm.
           </p>
@@ -314,10 +348,15 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
             {placed.insideDhaka ? "1–2 days" : "3–5 days"}
           </p>
 
-          <Button className="mt-6" render={<Link href="/products" />}>
-            Continue shopping
-            <ArrowRightIcon />
-          </Button>
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            <Button render={<Link href={`/account/orders/${placed.id}`} />}>
+              Track this order
+              <ArrowRightIcon />
+            </Button>
+            <Button variant="outline" render={<Link href="/products" />}>
+              Continue shopping
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -340,7 +379,7 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
       </Link>
 
       <form
-        onSubmit={placeOrder}
+        onSubmit={(e) => void submitOrder(e)}
         noValidate
         className="mt-8 flex flex-col gap-10 lg:flex-row lg:gap-12"
       >
@@ -445,15 +484,19 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
             <div className="mt-5 space-y-3">
               {PAYMENT_METHODS.map((method) => {
                 const selected = payment === method.id;
+                // Gateways aren't integrated yet — only COD really charges.
+                const comingSoon = method.id !== "cod";
                 const Icon = method.icon;
                 return (
                   <label
                     key={method.id}
                     className={cn(
-                      "flex cursor-pointer items-start gap-3.5 rounded-xl border p-4 transition-all",
-                      selected
-                        ? "border-brand bg-brand/5 ring-1 ring-brand/30"
-                        : "hover:border-foreground/30"
+                      "flex items-start gap-3.5 rounded-xl border p-4 transition-all",
+                      comingSoon
+                        ? "cursor-not-allowed opacity-55"
+                        : selected
+                          ? "cursor-pointer border-brand bg-brand/5 ring-1 ring-brand/30"
+                          : "cursor-pointer hover:border-foreground/30"
                     )}
                   >
                     <input
@@ -461,6 +504,7 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
                       name="payment"
                       value={method.id}
                       checked={selected}
+                      disabled={comingSoon}
                       onChange={() => setPayment(method.id)}
                       className="sr-only"
                     />
@@ -475,6 +519,11 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
                         {method.label}
                         {"recommended" in method && method.recommended && (
                           <Badge variant="secondary">Most popular</Badge>
+                        )}
+                        {comingSoon && (
+                          <Badge variant="outline" className="text-[10px]">
+                            Coming soon
+                          </Badge>
                         )}
                       </span>
                       <span className="mt-0.5 block text-xs text-muted-foreground">
@@ -563,12 +612,19 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
               </span>
             </div>
 
+            {errors.submit && (
+              <p className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {errors.submit}
+              </p>
+            )}
+
             <Button
               type="submit"
               size="lg"
+              disabled={submitting}
               className="mt-5 h-11 w-full text-base"
             >
-              Place Order
+              {submitting ? "Placing order…" : "Place Order"}
               <ArrowRightIcon />
             </Button>
             <p className="mt-3 text-center text-xs text-muted-foreground">
