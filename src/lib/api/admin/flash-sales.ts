@@ -54,7 +54,7 @@ export interface AdminFlashSaleItem {
     name: string;
     sku: string;
     price: string;
-    product: { id: string; name: string; slug: string };
+    product: { id: string; name: string; slug: string; categoryId: string };
   };
 }
 

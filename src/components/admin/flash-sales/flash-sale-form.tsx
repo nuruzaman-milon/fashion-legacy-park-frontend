@@ -137,7 +137,8 @@ export function FlashSaleForm({
         startsAt,
         endsAt,
       });
-      router.push(`/admin/flash-sales/${created.id}/edit`);
+      // Step two — the edit page opens with the add-products dialog up.
+      router.push(`/admin/flash-sales/${created.id}/edit?add=1`);
       return undefined;
     } catch (error) {
       if (error instanceof ApiError) {

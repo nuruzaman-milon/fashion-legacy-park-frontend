@@ -5,19 +5,35 @@ import * as React from "react";
 import { FormAlert } from "@/components/auth/form-alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CategoryRulesSection } from "@/components/admin/flash-sales/category-rules-section";
 import { FlashSaleForm } from "@/components/admin/flash-sales/flash-sale-form";
-import { ItemsSection } from "@/components/admin/flash-sales/items-section";
 import { phaseOf } from "@/components/admin/flash-sales/phase";
-import { RulesSection } from "@/components/admin/flash-sales/rules-section";
+import { SaleProductsSection } from "@/components/admin/flash-sales/sale-products-section";
+import { getAdminCategories } from "@/lib/api/admin/categories";
 import {
   getAdminFlashSale,
   type AdminFlashSaleDetail,
 } from "@/lib/api/admin/flash-sales";
 import { ApiError } from "@/lib/api/client";
+import type { AdminCategory } from "@/types/admin";
 
-/** Details, rules and items of one sale — each section saves on its own. */
-export function FlashSaleEditor({ saleId }: { saleId: string }) {
+/**
+ * Details, products and category discounts of one sale — each section saves
+ * on its own. `autoAdd` opens the add-products dialog straight away (the
+ * create page redirects here with it, so step two starts itself).
+ */
+export function FlashSaleEditor({
+  saleId,
+  autoAdd = false,
+}: {
+  saleId: string;
+  autoAdd?: boolean;
+}) {
   const [sale, setSale] = React.useState<AdminFlashSaleDetail | null>(null);
+  // Ancestor chains for the price preview + the category picker labels.
+  const [categories, setCategories] = React.useState<AdminCategory[] | null>(
+    null,
+  );
   // Captured at load — a stable "now" for the live check (the purity lint
   // bars Date.now() during render).
   const [now, setNow] = React.useState(0);
@@ -43,6 +59,13 @@ export function FlashSaleEditor({ saleId }: { saleId: string }) {
   React.useEffect(() => {
     void load();
   }, [load]);
+
+  React.useEffect(() => {
+    getAdminCategories().then(setCategories).catch(() => {
+      // Price previews fall back to "via category" less precisely; the
+      // category dialog shows its own loading note.
+    });
+  }, []);
 
   if (loadError && sale === null) {
     return (
@@ -86,8 +109,17 @@ export function FlashSaleEditor({ saleId }: { saleId: string }) {
           setSale((prev) => (prev ? { ...prev, ...updated } : prev))
         }
       />
-      <RulesSection sale={sale} onChanged={load} />
-      <ItemsSection sale={sale} onChanged={load} />
+      <SaleProductsSection
+        sale={sale}
+        categories={categories}
+        onChanged={load}
+        autoAdd={autoAdd}
+      />
+      <CategoryRulesSection
+        sale={sale}
+        categories={categories}
+        onChanged={load}
+      />
     </div>
   );
 }

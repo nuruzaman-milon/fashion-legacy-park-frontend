@@ -113,6 +113,19 @@ export async function listAdminProducts(
   );
 }
 
+/** Every product, page-looped (backend caps limit at 100 per page). */
+export async function listAllAdminProducts(): Promise<AdminProductListItem[]> {
+  const all: AdminProductListItem[] = [];
+  let page = 1;
+  for (;;) {
+    const { items, meta } = await listAdminProducts({ limit: 100, page });
+    all.push(...items);
+    if (!meta.hasNext) break;
+    page += 1;
+  }
+  return all;
+}
+
 export async function getAdminProduct(
   id: string,
 ): Promise<AdminProductDetail> {

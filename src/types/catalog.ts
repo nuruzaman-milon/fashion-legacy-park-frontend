@@ -82,6 +82,14 @@ export interface ProductVariantInfo {
   comparePrice: number | null;
   stock: number;
   optionValueIds: string[];
+  /** Live flash-sale deal for THIS variant — null when it isn't on sale. */
+  flash: {
+    price: number;
+    quantityLimit: number | null;
+    soldCount: number;
+    /** Units left at flash price; null = uncapped. */
+    remaining: number | null;
+  } | null;
 }
 
 /** Mirrors `ProductImage` — `optionValueId` scopes an image to a colour. */

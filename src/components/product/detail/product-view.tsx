@@ -53,10 +53,11 @@ export function ProductView({ product }: { product: ProductDetail }) {
   const gallery = product.images;
   const activeImage = gallery[Math.min(imageIndex, gallery.length - 1)];
 
-  const sale = product.flashSale;
-  const salePct = sale ? sale.flashPrice / product.minPrice : 1;
-  const price = Math.round(variant.price * salePct);
-  const compareAt = sale ? variant.price : variant.comparePrice;
+  // Per-variant flash pricing from the backend resolver — the exact figure
+  // the homepage sale section and the cart charge, not an approximation.
+  const flash = variant.flash;
+  const price = flash ? flash.price : variant.price;
+  const compareAt = flash ? variant.price : variant.comparePrice;
   const hasDiscount = compareAt !== null && compareAt > price;
 
   const outOfStock = !matched || matched.stock === 0;
@@ -323,24 +324,24 @@ export function ProductView({ product }: { product: ProductDetail }) {
               {formatPrice(compareAt)}
             </span>
           )}
-          {sale && (
+          {flash && (
             <Badge className="bg-brand text-brand-foreground">
               <ZapIcon className="fill-current" /> Flash sale
             </Badge>
           )}
         </div>
-        {sale?.quantityLimit && (
+        {flash?.quantityLimit && (
           <div className="mt-3 max-w-xs">
             <div className="h-1.5 overflow-hidden rounded-full bg-muted">
               <div
                 className="h-full rounded-full bg-brand"
                 style={{
-                  width: `${Math.min(100, (sale.soldCount / sale.quantityLimit) * 100)}%`,
+                  width: `${Math.min(100, (flash.soldCount / flash.quantityLimit) * 100)}%`,
                 }}
               />
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              {sale.soldCount} of {sale.quantityLimit} sold at this price
+              {flash.soldCount} of {flash.quantityLimit} sold at this price
             </p>
           </div>
         )}

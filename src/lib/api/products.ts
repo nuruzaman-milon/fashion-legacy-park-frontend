@@ -208,8 +208,15 @@ interface ApiProductDetail extends ApiProductListItem {
     available: number;
     isDefault: boolean;
     valueIds: string[];
+    flash: {
+      price: string;
+      quantityLimit: number | null;
+      soldCount: number;
+      remaining: number | null;
+    } | null;
   }[];
   inStockValueIds: string[];
+  flashSale: { id: string; title: string; endsAt: string } | null;
 }
 
 export async function getAllProductSlugs(): Promise<string[]> {
@@ -262,6 +269,12 @@ export async function getProductBySlug(
       comparePrice: v.comparePrice === null ? null : Number(v.comparePrice),
       stock: v.available,
       optionValueIds: v.valueIds,
+      flash: v.flash && {
+        price: Number(v.flash.price),
+        quantityLimit: v.flash.quantityLimit,
+        soldCount: v.flash.soldCount,
+        remaining: v.flash.remaining,
+      },
     }));
   if (variants.length === 0) return null; // never live per backend rules
 

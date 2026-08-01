@@ -12,6 +12,7 @@ import {
   RefreshCcwIcon,
   ShoppingBagIcon,
   TrendingDownIcon,
+  ZapIcon,
   TruckIcon,
   XIcon,
 } from "lucide-react";
@@ -251,12 +252,20 @@ export function CartView() {
                               {UNAVAILABLE_REASON_LABEL[line.unavailableReason]}
                             </p>
                           )}
-                          {line.isAvailable && line.priceDropped && (
+                          {line.isAvailable && line.onFlashSale && (
                             <p className="mt-1 flex items-center gap-1 text-xs font-medium text-brand">
-                              <TrendingDownIcon className="size-3.5" />
-                              Price dropped since you added this
+                              <ZapIcon className="size-3.5 fill-current" />
+                              Flash sale price
                             </p>
                           )}
+                          {line.isAvailable &&
+                            line.priceDropped &&
+                            !line.onFlashSale && (
+                              <p className="mt-1 flex items-center gap-1 text-xs font-medium text-brand">
+                                <TrendingDownIcon className="size-3.5" />
+                                Price dropped since you added this
+                              </p>
+                            )}
                         </div>
                         <button
                           type="button"

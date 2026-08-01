@@ -25,6 +25,8 @@ interface ApiCartItem {
   maxQuantity: number;
   priceChanged: boolean;
   priceDropped: boolean;
+  /** unitPrice is the live flash-sale price; variant.price is the regular. */
+  onFlashSale: boolean;
   addedPrice: string;
   variant: {
     id: string;
@@ -63,6 +65,8 @@ export interface CartLine {
   /** True when the price moved since the line was added (informational). */
   priceChanged: boolean;
   priceDropped: boolean;
+  /** unitPrice is the flash price; compareAtPrice holds the regular price. */
+  onFlashSale: boolean;
   isAvailable: boolean;
   unavailableReason: ApiCartItem["unavailableReason"];
   /** What the backend will accept for this line — clamps the stepper. */
@@ -107,12 +111,16 @@ export function mapCart(api: ApiCart): Cart {
       image: item.product.image,
       variantLabel: item.variant.name === "Default" ? null : item.variant.name,
       unitPrice: Number(item.unitPrice),
-      compareAtPrice:
-        item.variant.comparePrice === null
+      // On flash sale the regular price is the strikethrough anchor — it
+      // beats comparePrice, which anchors the everyday discount instead.
+      compareAtPrice: item.onFlashSale
+        ? Number(item.variant.price)
+        : item.variant.comparePrice === null
           ? null
           : Number(item.variant.comparePrice),
       priceChanged: item.priceChanged,
       priceDropped: item.priceDropped,
+      onFlashSale: item.onFlashSale,
       isAvailable: item.isAvailable,
       unavailableReason: item.unavailableReason,
       maxQuantity: item.maxQuantity,
