@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ExternalLinkIcon, PanelLeftIcon } from "lucide-react";
 
 import { AdminNav } from "@/components/admin/admin-nav";
+import { NotificationsBell } from "@/components/admin/notifications-bell";
 import { UserMenu } from "@/components/layout/user-menu";
 import { Button } from "@/components/ui/button";
 import {
@@ -95,6 +96,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             >
               <ExternalLinkIcon className="size-4" />
             </Button>
+            <NotificationsBell />
             <UserMenu />
           </div>
         </header>
