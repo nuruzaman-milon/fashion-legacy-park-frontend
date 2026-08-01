@@ -1,14 +1,19 @@
 import type { Metadata } from "next";
 
-import { ModuleStub } from "@/components/admin/module-stub";
+import { UserTable } from "@/components/admin/users/user-table";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "Users" };
 
 export default function AdminUsersPage() {
   return (
-    <ModuleStub
-      title="Users"
-      description="Customer and staff accounts, roles and access."
-    />
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
+      <PageHeader
+        title="Users"
+        description="Every account on the store — roles decide what they can do, deactivation locks them out."
+        className="mb-2"
+      />
+      <UserTable />
+    </div>
   );
 }
