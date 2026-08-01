@@ -56,8 +56,8 @@ export function ReviewsSection({ product }: { product: ProductDetail }) {
 
         {product.reviews.length === 0 ? (
           <p className="self-center rounded-xl border border-dashed px-6 py-10 text-center text-sm text-muted-foreground">
-            Written reviews will appear here soon — the rating summary comes
-            from verified purchases.
+            No written reviews yet — buy it, and rate it from your orders page
+            after delivery.
           </p>
         ) : (
         <ul className="space-y-5">

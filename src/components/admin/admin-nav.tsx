@@ -54,7 +54,7 @@ const NAV_GROUPS: { label: string | null; items: AdminNavItem[] }[] = [
     label: "Sales",
     items: [
       { href: "/admin/orders", label: "Orders", icon: ShoppingBagIcon },
-      { href: "/admin/reviews", label: "Reviews", icon: StarIcon, soon: true },
+      { href: "/admin/reviews", label: "Reviews", icon: StarIcon },
     ],
   },
   {

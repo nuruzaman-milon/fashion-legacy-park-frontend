@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeftIcon, CheckIcon } from "lucide-react";
+import { ArrowLeftIcon, CheckIcon, StarIcon } from "lucide-react";
 
 import {
   AlertDialog,
@@ -12,16 +12,26 @@ import {
   AlertDialogFooter,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { FormAlert } from "@/components/auth/form-alert";
 import { OrderStatusBadge } from "@/components/account/order-status-badge";
 import { Button } from "@/components/ui/button";
 import { ProductThumb } from "@/components/product/product-thumb";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import {
   cancelMyOrder,
   getMyOrder,
+  submitReview,
   type OrderDetail,
+  type OrderItemInfo,
 } from "@/lib/api/orders";
 import { ApiError } from "@/lib/api/client";
 import { formatDateTime, formatPrice } from "@/lib/format";
@@ -43,6 +53,9 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
   const [cancelOpen, setCancelOpen] = React.useState(false);
   const [cancelBusy, setCancelBusy] = React.useState(false);
   const [cancelError, setCancelError] = React.useState<string | null>(null);
+  const [reviewItem, setReviewItem] = React.useState<OrderItemInfo | null>(
+    null,
+  );
 
   React.useEffect(() => {
     let cancelled = false;
@@ -195,6 +208,35 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
                     : ""}
                   {formatPrice(Number(item.unitPrice))} × {item.quantity}
                 </p>
+                {order.orderStatus === "DELIVERED" &&
+                  (item.review ? (
+                    <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="flex">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <StarIcon
+                            key={n}
+                            className={`size-3.5 ${
+                              n <= item.review!.rating
+                                ? "fill-brand text-brand"
+                                : "text-muted-foreground/40"
+                            }`}
+                          />
+                        ))}
+                      </span>
+                      {item.review.status === "PENDING" && "In moderation"}
+                      {item.review.status === "APPROVED" && "Published"}
+                      {item.review.status === "REJECTED" && "Not published"}
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setReviewItem(item)}
+                      className="mt-1 flex items-center gap-1 text-xs font-medium text-brand hover:underline"
+                    >
+                      <StarIcon className="size-3.5" />
+                      Rate this item
+                    </button>
+                  ))}
               </div>
               <p className="text-sm font-medium tabular-nums">
                 {formatPrice(Number(item.unitPrice) * item.quantity)}
@@ -203,6 +245,26 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
           ))}
         </ul>
       </div>
+
+      {reviewItem && (
+        <ReviewDialog
+          item={reviewItem}
+          onClose={() => setReviewItem(null)}
+          onSaved={(review) => {
+            setOrder((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    items: prev.items.map((i) =>
+                      i.id === reviewItem.id ? { ...i, review } : i,
+                    ),
+                  }
+                : prev,
+            );
+            setReviewItem(null);
+          }}
+        />
+      )}
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="rounded-xl border bg-card p-5">
@@ -283,5 +345,114 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+/** Star rating + optional words for one purchased line — goes to moderation. */
+function ReviewDialog({
+  item,
+  onClose,
+  onSaved,
+}: {
+  item: OrderItemInfo;
+  onClose: () => void;
+  onSaved: (review: NonNullable<OrderItemInfo["review"]>) => void;
+}) {
+  const [rating, setRating] = React.useState(0);
+  const [comment, setComment] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  async function save() {
+    if (rating === 0) {
+      setError("Tap a star first — how many out of five?");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const created = await submitReview(
+        item.id,
+        rating,
+        comment.trim() || undefined,
+      );
+      onSaved({
+        id: created.id,
+        rating,
+        status: "PENDING",
+      });
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Could not submit the review. Please try again.",
+      );
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !busy) onClose();
+      }}
+    >
+      <DialogContent>
+        <DialogTitle>Rate {item.title}</DialogTitle>
+        <DialogDescription>
+          Your review is published after a quick moderation check.
+        </DialogDescription>
+
+        {error && <FormAlert>{error}</FormAlert>}
+
+        <div className="flex items-center gap-1">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button
+              key={n}
+              type="button"
+              aria-label={`${n} ${n === 1 ? "star" : "stars"}`}
+              onClick={() => setRating(n)}
+              className="p-0.5"
+            >
+              <StarIcon
+                className={`size-7 transition-colors ${
+                  n <= rating
+                    ? "fill-brand text-brand"
+                    : "text-muted-foreground/40 hover:text-brand"
+                }`}
+              />
+            </button>
+          ))}
+          {rating > 0 && (
+            <span className="ml-2 text-sm text-muted-foreground">
+              {rating}/5
+            </span>
+          )}
+        </div>
+
+        <Textarea
+          aria-label="Your review"
+          placeholder="What did you like or dislike? (optional)"
+          className="min-h-24"
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+        />
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
+          <Button type="button" disabled={busy} onClick={() => void save()}>
+            {busy ? "Submitting…" : "Submit review"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

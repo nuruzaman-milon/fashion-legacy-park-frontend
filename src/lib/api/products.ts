@@ -217,6 +217,17 @@ interface ApiProductDetail extends ApiProductListItem {
   }[];
   inStockValueIds: string[];
   flashSale: { id: string; title: string; endsAt: string } | null;
+  /** Latest APPROVED reviews ride along with the page (max 10). */
+  reviews: {
+    id: string;
+    rating: number;
+    comment: string | null;
+    isVerifiedPurchase: boolean;
+    adminReply: string | null;
+    helpfulCount: number;
+    createdAt: string;
+    user: { name: string };
+  }[];
 }
 
 export async function getAllProductSlugs(): Promise<string[]> {
@@ -306,9 +317,16 @@ export async function getProductBySlug(
       optionValueId: img.optionValueId,
     })),
     inStockValueIds: api.inStockValueIds,
-    // The reviews module isn't built yet — `avgRating`/`reviewCount` are
-    // real, individual review rows don't exist.
-    reviews: [],
+    reviews: api.reviews.map((r) => ({
+      id: r.id,
+      author: r.user.name,
+      rating: r.rating,
+      comment: r.comment ?? "",
+      createdAt: r.createdAt,
+      isVerified: r.isVerifiedPurchase,
+      helpfulCount: r.helpfulCount,
+      adminReply: r.adminReply,
+    })),
     lowStockThreshold: 5,
   };
 }

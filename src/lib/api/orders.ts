@@ -36,6 +36,12 @@ export interface OrderItemInfo {
   totalPrice?: string;
   image: string | null;
   product?: { slug: string } | null;
+  /** The customer's review of this line, if any (detail payload only). */
+  review?: {
+    id: string;
+    rating: number;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+  } | null;
 }
 
 export interface OrderSummary {
@@ -105,5 +111,20 @@ export async function cancelMyOrder(
   return apiFetch<OrderDetail>(`/orders/${id}/cancel`, {
     method: "POST",
     body: { ...(reason && { reason }) },
+  });
+}
+
+/**
+ * One review per purchased line, only after delivery. It goes into the
+ * moderation queue (PENDING) — the product page shows it once approved.
+ */
+export async function submitReview(
+  orderItemId: string,
+  rating: number,
+  comment?: string,
+): Promise<{ id: string; rating: number; status: string }> {
+  return apiFetch(`/reviews`, {
+    method: "POST",
+    body: { orderItemId, rating, ...(comment && { comment }) },
   });
 }
