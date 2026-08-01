@@ -47,6 +47,97 @@ const STEP_LABEL: Record<string, string> = {
   RETURNED: "Returned",
 };
 
+/** How far along the four tracking stages each status is. */
+const STATUS_STAGE: Record<string, number> = {
+  PENDING: 0,
+  CONFIRMED: 1,
+  PROCESSING: 1,
+  SHIPPED: 2,
+  DELIVERED: 3,
+};
+
+/**
+ * Courier-style progress: all four stages visible, the future greyed out —
+ * so "where is my parcel and what happens next" reads at a glance.
+ * Cancelled orders skip this and keep the plain timeline.
+ */
+function OrderTracker({ order }: { order: OrderDetail }) {
+  const stage = STATUS_STAGE[order.orderStatus];
+  if (stage === undefined) return null;
+
+  const steps = [
+    { label: "Order placed", at: order.createdAt },
+    { label: "Confirmed", at: order.confirmedAt },
+    { label: "Shipped", at: order.shippedAt },
+    { label: "Delivered", at: order.deliveredAt },
+  ];
+
+  return (
+    <div className="mt-5">
+      <ol className="flex items-start">
+        {steps.map((step, index) => {
+          const done = index <= stage;
+          const isCurrent = index === stage && order.orderStatus !== "DELIVERED";
+          return (
+            <li key={step.label} className="flex flex-1 flex-col items-center">
+              <div className="flex w-full items-center">
+                <div
+                  aria-hidden
+                  className={`h-0.5 flex-1 ${
+                    index === 0
+                      ? "bg-transparent"
+                      : done
+                        ? "bg-brand"
+                        : "bg-border"
+                  }`}
+                />
+                <span
+                  className={`flex size-7 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                    done
+                      ? "border-brand bg-brand text-brand-foreground"
+                      : "border-border bg-background text-muted-foreground"
+                  } ${isCurrent ? "ring-4 ring-brand/20" : ""}`}
+                >
+                  <CheckIcon className="size-3.5" />
+                </span>
+                <div
+                  aria-hidden
+                  className={`h-0.5 flex-1 ${
+                    index === steps.length - 1
+                      ? "bg-transparent"
+                      : index < stage
+                        ? "bg-brand"
+                        : "bg-border"
+                  }`}
+                />
+              </div>
+              <p
+                className={`mt-2 text-center text-xs font-medium ${
+                  done ? "" : "text-muted-foreground"
+                }`}
+              >
+                {step.label}
+              </p>
+              <p className="mt-0.5 text-center text-[11px] text-muted-foreground">
+                {done && step.at
+                  ? formatDateTime(step.at)
+                  : done && index === 0
+                    ? formatDateTime(order.createdAt)
+                    : ""}
+              </p>
+            </li>
+          );
+        })}
+      </ol>
+      {order.orderStatus === "PROCESSING" && (
+        <p className="mt-2 text-center text-xs text-muted-foreground">
+          Your order is being prepared for the courier.
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** One order: timeline, items, delivery and money — plus cancel while early. */
 export function OrderDetailView({ orderId }: { orderId: string }) {
   const [order, setOrder] = React.useState<OrderDetail | null>(null);
@@ -170,7 +261,14 @@ export function OrderDetailView({ orderId }: { orderId: string }) {
           </p>
         )}
 
-        <ol className="mt-5 space-y-3">
+        <OrderTracker order={order} />
+
+        <Separator className="my-5" />
+
+        <p className="text-xs font-semibold tracking-[0.12em] text-muted-foreground uppercase">
+          Updates
+        </p>
+        <ol className="mt-3 space-y-3">
           {order.statusHistory.map((step) => (
             <li key={step.id} className="flex items-start gap-3">
               <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-brand/10">
