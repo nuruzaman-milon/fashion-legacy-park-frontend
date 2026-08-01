@@ -25,6 +25,19 @@ export function formatDate(iso: string): string {
   return bdDate.format(new Date(iso));
 }
 
+const bdDateTime = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+/** "1 Aug 2026, 10:00" — sale windows and other exact moments. */
+export function formatDateTime(iso: string): string {
+  return bdDateTime.format(new Date(iso));
+}
+
 const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
 /** "just now" / "5 minutes ago" / "2 days ago", falling back to the date. */
