@@ -12,7 +12,8 @@ export type NotificationType =
   | "ORDER"
   | "PAYMENT"
   | "PROMOTION"
-  | "SELLER";
+  | "SELLER"
+  | "CHAT";
 
 export interface AppNotification {
   id: string;
@@ -24,17 +25,23 @@ export interface AppNotification {
   createdAt: string;
 }
 
-export async function listNotifications(
-  limit = 12,
-): Promise<Paginated<AppNotification>> {
-  return apiFetch<Paginated<AppNotification>>(`/notifications?limit=${limit}`);
+/** Total for the bell badge, per-type for the category tabs. */
+export interface UnreadSummary {
+  count: number;
+  byType: Partial<Record<NotificationType, number>>;
 }
 
-export async function getUnreadCount(): Promise<number> {
-  const { count } = await apiFetch<{ count: number }>(
-    "/notifications/unread-count",
-  );
-  return count;
+export async function listNotifications(
+  limit = 12,
+  type?: NotificationType,
+): Promise<Paginated<AppNotification>> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (type) params.set("type", type);
+  return apiFetch<Paginated<AppNotification>>(`/notifications?${params}`);
+}
+
+export async function getUnreadSummary(): Promise<UnreadSummary> {
+  return apiFetch<UnreadSummary>("/notifications/unread-count");
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
