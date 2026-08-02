@@ -6,7 +6,7 @@ function pad(n: number) {
   return String(n).padStart(2, "0");
 }
 
-/** Live HH:MM:SS countdown. Renders placeholders until mounted to stay hydration-safe. */
+/** Live countdown (adds a days unit past 24h). Renders placeholders until mounted to stay hydration-safe. */
 export function SaleCountdown({ endsAt }: { endsAt: string }) {
   const [remaining, setRemaining] = React.useState<number | null>(null);
 
@@ -19,15 +19,19 @@ export function SaleCountdown({ endsAt }: { endsAt: string }) {
   }, [endsAt]);
 
   const totalSeconds = remaining === null ? null : Math.floor(remaining / 1000);
+  const showDays = totalSeconds !== null && totalSeconds >= 86400;
   const parts =
     totalSeconds === null
       ? ["--", "--", "--"]
       : [
-          pad(Math.floor(totalSeconds / 3600)),
+          ...(showDays ? [pad(Math.floor(totalSeconds / 86400))] : []),
+          pad(Math.floor((totalSeconds % 86400) / 3600)),
           pad(Math.floor((totalSeconds % 3600) / 60)),
           pad(totalSeconds % 60),
         ];
-  const labels = ["hrs", "min", "sec"];
+  const labels = showDays
+    ? ["days", "hrs", "min", "sec"]
+    : ["hrs", "min", "sec"];
 
   return (
     <div className="flex items-center gap-1.5" role="timer" aria-label="Sale ends in">
@@ -41,7 +45,9 @@ export function SaleCountdown({ endsAt }: { endsAt: string }) {
               {labels[i]}
             </span>
           </span>
-          {i < 2 && <span className="text-sm font-semibold opacity-60">:</span>}
+          {i < parts.length - 1 && (
+            <span className="text-sm font-semibold opacity-60">:</span>
+          )}
         </React.Fragment>
       ))}
     </div>
