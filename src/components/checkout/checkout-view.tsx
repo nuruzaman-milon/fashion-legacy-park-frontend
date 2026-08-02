@@ -192,9 +192,84 @@ function CheckoutSkeleton() {
  * lines to the form. Placement is real: POST /orders consumes the server
  * cart, re-resolves prices and returns the invoice.
  */
+/**
+ * Rendered by CheckoutView, not the form: placing an order empties the cart,
+ * and the reload must not let the empty-cart guard swap this screen away.
+ */
+function OrderSuccess({ placed }: { placed: PlacedOrder }) {
+  return (
+    <div className="mx-auto max-w-xl">
+      <div className="rounded-2xl border bg-card p-8 text-center sm:p-10">
+        <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-brand/10">
+          <CheckIcon className="size-8 text-brand" />
+        </span>
+        <h1 className="font-heading mt-5 text-2xl font-medium tracking-tight sm:text-3xl">
+          Order placed!
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Order{" "}
+          <span className="font-semibold text-foreground">
+            #{placed.invoiceNo}
+          </span>{" "}
+          · We’ll call {placed.phone} shortly to confirm.
+        </p>
+
+        <dl className="mt-6 space-y-2.5 rounded-xl bg-muted/60 p-4 text-left text-sm">
+          <div className="flex justify-between gap-6">
+            <dt className="shrink-0 text-muted-foreground">Deliver to</dt>
+            <dd className="text-right font-medium">
+              {placed.name} · {placed.address}, {placed.districtLabel}
+            </dd>
+          </div>
+          <div className="flex justify-between gap-6">
+            <dt className="text-muted-foreground">Payment</dt>
+            <dd className="font-medium">{placed.paymentLabel}</dd>
+          </div>
+          {placed.discount > 0 && (
+            <div className="flex justify-between gap-6">
+              <dt className="text-muted-foreground">
+                Discount{placed.couponCode ? ` (${placed.couponCode})` : ""}
+              </dt>
+              <dd className="font-medium text-emerald-700 dark:text-emerald-400">
+                -{formatPrice(placed.discount)}
+              </dd>
+            </div>
+          )}
+          <div className="flex justify-between gap-6">
+            <dt className="text-muted-foreground">Total</dt>
+            <dd className="font-semibold">{formatPrice(placed.total)}</dd>
+          </div>
+        </dl>
+
+        <p className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+          <TruckIcon className="size-4 text-brand" />
+          Estimated delivery: {placed.insideDhaka ? "1–2 days" : "3–5 days"}
+        </p>
+
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <Button render={<Link href={`/account/orders/${placed.id}`} />}>
+            Track this order
+            <ArrowRightIcon />
+          </Button>
+          <Button variant="outline" render={<Link href="/products" />}>
+            Continue shopping
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function CheckoutView() {
   const { status } = useAuth();
   const { cart, cartState } = useShop();
+  // Owned here, above every guard: once an order is placed, nothing the cart
+  // does afterwards may replace the confirmation.
+  const [placed, setPlaced] = React.useState<PlacedOrder | null>(null);
+
+  if (placed) {
+    return <OrderSuccess placed={placed} />;
+  }
 
   if (status === "anonymous") {
     return (
@@ -231,10 +306,16 @@ export function CheckoutView() {
     );
   }
 
-  return <CheckoutForm lines={lines} />;
+  return <CheckoutForm lines={lines} onPlaced={setPlaced} />;
 }
 
-function CheckoutForm({ lines }: { lines: CartLine[] }) {
+function CheckoutForm({
+  lines,
+  onPlaced,
+}: {
+  lines: CartLine[];
+  onPlaced: (order: PlacedOrder) => void;
+}) {
   const { reloadCart } = useShop();
   const [name, setName] = React.useState("");
   const [phone, setPhone] = React.useState("");
@@ -244,7 +325,6 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
   const [payment, setPayment] = React.useState<PaymentId>("cod");
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [submitting, setSubmitting] = React.useState(false);
-  const [placed, setPlaced] = React.useState<PlacedOrder | null>(null);
 
   // Coupon — previewed server-side against the same cart placeOrder charges.
   const [couponInput, setCouponInput] = React.useState("");
@@ -391,7 +471,7 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
       }
 
       reloadCart();
-      setPlaced({
+      onPlaced({
         id: order.id,
         invoiceNo: order.invoiceNo,
         name: order.shipReceiverName,
@@ -420,71 +500,6 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
       setSubmitting(false);
     }
   };
-
-  if (placed) {
-    return (
-      <div className="mx-auto max-w-xl">
-        <div className="rounded-2xl border bg-card p-8 text-center sm:p-10">
-          <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-brand/10">
-            <CheckIcon className="size-8 text-brand" />
-          </span>
-          <h1 className="font-heading mt-5 text-2xl font-medium tracking-tight sm:text-3xl">
-            Order placed!
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Order{" "}
-            <span className="font-semibold text-foreground">
-              #{placed.invoiceNo}
-            </span>{" "}
-            · We’ll call {placed.phone} shortly to confirm.
-          </p>
-
-          <dl className="mt-6 space-y-2.5 rounded-xl bg-muted/60 p-4 text-left text-sm">
-            <div className="flex justify-between gap-6">
-              <dt className="shrink-0 text-muted-foreground">Deliver to</dt>
-              <dd className="text-right font-medium">
-                {placed.name} · {placed.address}, {placed.districtLabel}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-6">
-              <dt className="text-muted-foreground">Payment</dt>
-              <dd className="font-medium">{placed.paymentLabel}</dd>
-            </div>
-            {placed.discount > 0 && (
-              <div className="flex justify-between gap-6">
-                <dt className="text-muted-foreground">
-                  Discount{placed.couponCode ? ` (${placed.couponCode})` : ""}
-                </dt>
-                <dd className="font-medium text-emerald-700 dark:text-emerald-400">
-                  -{formatPrice(placed.discount)}
-                </dd>
-              </div>
-            )}
-            <div className="flex justify-between gap-6">
-              <dt className="text-muted-foreground">Total</dt>
-              <dd className="font-semibold">{formatPrice(placed.total)}</dd>
-            </div>
-          </dl>
-
-          <p className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-            <TruckIcon className="size-4 text-brand" />
-            Estimated delivery:{" "}
-            {placed.insideDhaka ? "1–2 days" : "3–5 days"}
-          </p>
-
-          <div className="mt-6 flex flex-wrap justify-center gap-2">
-            <Button render={<Link href={`/account/orders/${placed.id}`} />}>
-              Track this order
-              <ArrowRightIcon />
-            </Button>
-            <Button variant="outline" render={<Link href="/products" />}>
-              Continue shopping
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div>
