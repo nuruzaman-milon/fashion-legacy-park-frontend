@@ -44,14 +44,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  attachProductOptions,
-  deleteVariant,
-  generateVariants,
-  getProductVariants,
-  updateVariant,
-  type VariantPayload,
-} from "@/lib/api/admin/products";
+import { useCatalogSurface } from "@/components/admin/products/catalog-surface";
+import type { VariantPayload } from "@/lib/api/catalog";
 import {
   getOptionLibrary,
   type OptionLibraryItem,
@@ -104,6 +98,7 @@ function AttachOptions({
   attached: AdminProductOption[];
   onOptionsChange: (options: AdminProductOption[]) => void;
 }) {
+  const { api } = useCatalogSurface();
   const [library, setLibrary] = React.useState<OptionLibraryItem[] | null>(
     null,
   );
@@ -144,7 +139,7 @@ function AttachOptions({
     setBusy(true);
     setError(null);
     try {
-      onOptionsChange(await attachProductOptions(productId, selected));
+      onOptionsChange(await api.attachProductOptions(productId, selected));
     } catch (err) {
       setError(messageOf(err, "Could not save the options."));
     } finally {
@@ -208,6 +203,7 @@ function GenerateDialog({
   options: AdminProductOption[];
   onGenerated: (variants: AdminProductVariant[]) => void;
 }) {
+  const { api } = useCatalogSurface();
   const [open, setOpen] = React.useState(false);
   const [picked, setPicked] = React.useState<Record<string, string[]>>({});
   const [price, setPrice] = React.useState("");
@@ -254,13 +250,13 @@ function GenerateDialog({
     setBusy(true);
     setError(null);
     try {
-      const result = await generateVariants(productId, {
+      const result = await api.generateVariants(productId, {
         selections,
         price: priceNumber,
         stock: stockNumber,
         ...(skuPrefix && { skuPrefix }),
       });
-      onGenerated(await getProductVariants(productId));
+      onGenerated(await api.getProductVariants(productId));
       setOpen(false);
       setPicked({});
       if (result.skipped > 0) {
@@ -413,6 +409,7 @@ function EditVariantForm({
   onClose: () => void;
   onSaved: (variant: AdminProductVariant) => void;
 }) {
+  const { api } = useCatalogSurface();
   const [values, setValues] = React.useState(() => ({
     sku: variant.sku,
     price: variant.price,
@@ -458,7 +455,7 @@ function EditVariantForm({
     setBusy(true);
     setError(null);
     try {
-      onSaved(await updateVariant(variant.id, payload));
+      onSaved(await api.updateVariant(variant.id, payload));
       onClose();
     } catch (err) {
       setError(messageOf(err, "Could not save the variant."));
@@ -564,6 +561,7 @@ export function VariantsSection({
   onOptionsChange: (options: AdminProductOption[]) => void;
   onVariantsChange: (variants: AdminProductVariant[]) => void;
 }) {
+  const { api } = useCatalogSurface();
   const [error, setError] = React.useState<string | null>(null);
   const [editing, setEditing] = React.useState<AdminProductVariant | null>(
     null,
@@ -587,7 +585,7 @@ export function VariantsSection({
     setBusyId(variant.id);
     setError(null);
     try {
-      replace(await updateVariant(variant.id, { isActive: active }));
+      replace(await api.updateVariant(variant.id, { isActive: active }));
     } catch (err) {
       setError(messageOf(err, "Could not update the variant."));
     } finally {
@@ -600,7 +598,7 @@ export function VariantsSection({
     setBusyId(variant.id);
     setError(null);
     try {
-      replace(await updateVariant(variant.id, { isDefault: true }));
+      replace(await api.updateVariant(variant.id, { isDefault: true }));
     } catch (err) {
       setError(messageOf(err, "Could not set the default variant."));
     } finally {
@@ -613,7 +611,7 @@ export function VariantsSection({
     setBusyId(toDelete.id);
     setError(null);
     try {
-      await deleteVariant(toDelete.id);
+      await api.deleteVariant(toDelete.id);
       onVariantsChange(variants.filter((v) => v.id !== toDelete.id));
       setToDelete(null);
     } catch (err) {

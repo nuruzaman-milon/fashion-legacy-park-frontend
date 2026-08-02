@@ -20,12 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  addProductImage,
-  deleteProductImage,
-  getProductImages,
-  setPrimaryImage,
-} from "@/lib/api/admin/products";
+import { useCatalogSurface } from "@/components/admin/products/catalog-surface";
 import { MAX_UPLOAD_BYTES, uploadImage } from "@/lib/api/admin/uploads";
 import { ApiError } from "@/lib/api/client";
 import type { AdminProductImage, AdminProductOption } from "@/types/admin";
@@ -49,6 +44,7 @@ export function ImagesSection({
   options: AdminProductOption[];
   onImagesChange: (images: AdminProductImage[]) => void;
 }) {
+  const { api } = useCatalogSurface();
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [scope, setScope] = React.useState<string>(UNSCOPED);
   const [busy, setBusy] = React.useState(false);
@@ -74,7 +70,7 @@ export function ImagesSection({
   };
 
   async function resync() {
-    onImagesChange(await getProductImages(productId));
+    onImagesChange(await api.getProductImages(productId));
   }
 
   async function add(file: File) {
@@ -90,7 +86,7 @@ export function ImagesSection({
     setError(null);
     try {
       const uploaded = await uploadImage(file, "products");
-      const image = await addProductImage(productId, {
+      const image = await api.addProductImage(productId, {
         url: uploaded.url,
         publicId: uploaded.publicId,
         alt: file.name.replace(/\.\w+$/, ""),
@@ -114,7 +110,7 @@ export function ImagesSection({
     setBusy(true);
     setError(null);
     try {
-      await setPrimaryImage(id);
+      await api.setPrimaryImage(id);
       onImagesChange(
         images.map((img) => ({ ...img, isPrimary: img.id === id })),
       );
@@ -133,7 +129,7 @@ export function ImagesSection({
     setBusy(true);
     setError(null);
     try {
-      await deleteProductImage(id);
+      await api.deleteProductImage(id);
       // Resync instead of filtering locally — deleting the primary makes the
       // backend promote another image, and the star should follow it.
       await resync();

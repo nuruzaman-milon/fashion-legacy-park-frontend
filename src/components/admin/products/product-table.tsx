@@ -50,14 +50,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  categoryPathLabel,
-  getAdminCategories,
-} from "@/lib/api/admin/categories";
-import {
-  deleteProduct,
-  listAdminProducts,
-} from "@/lib/api/admin/products";
+import { useCatalogSurface } from "@/components/admin/products/catalog-surface";
+import { categoryPathLabel } from "@/lib/api/admin/categories";
 import { ApiError } from "@/lib/api/client";
 import { formatPriceRange } from "@/lib/format";
 import type {
@@ -110,6 +104,7 @@ function RowsSkeleton() {
  * the query params of `GET /admin/products`; pagination comes from its meta.
  */
 export function ProductTable() {
+  const { api, basePath, getCategories, kind } = useCatalogSurface();
   // The fetch result remembers which query it answered; "loading" is derived
   // (result key ≠ current key) instead of set synchronously in the effect.
   const [result, setResult] = React.useState<{
@@ -142,7 +137,7 @@ export function ProductTable() {
   // Filter labels for the category dropdown — child rows get a parent prefix.
   React.useEffect(() => {
     let cancelled = false;
-    getAdminCategories()
+    getCategories()
       .then((list) => {
         if (cancelled) return;
         setCategories([
@@ -159,7 +154,7 @@ export function ProductTable() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [getCategories]);
 
   const queryKey = [page, debouncedSearch, status, categoryId, refreshTick]
     .map(String)
@@ -167,12 +162,13 @@ export function ProductTable() {
 
   React.useEffect(() => {
     let cancelled = false;
-    listAdminProducts({
-      page,
-      search: debouncedSearch || undefined,
-      status: status === ALL ? undefined : (status as ProductStatus),
-      categoryId: categoryId === ALL ? undefined : categoryId,
-    })
+    api
+      .listProducts({
+        page,
+        search: debouncedSearch || undefined,
+        status: status === ALL ? undefined : (status as ProductStatus),
+        categoryId: categoryId === ALL ? undefined : categoryId,
+      })
       .then((data) => {
         if (cancelled) return;
         setResult({ key: queryKey, data });
@@ -189,7 +185,7 @@ export function ProductTable() {
     return () => {
       cancelled = true;
     };
-  }, [page, debouncedSearch, status, categoryId, refreshTick, queryKey]);
+  }, [page, debouncedSearch, status, categoryId, refreshTick, queryKey, api]);
 
   const loading = !error && result?.key !== queryKey;
   const data = result?.data ?? null;
@@ -205,7 +201,7 @@ export function ProductTable() {
     setDeleteBusy(true);
     setDeleteError(null);
     try {
-      await deleteProduct(toDelete.id);
+      await api.deleteProduct(toDelete.id);
       setToDelete(null);
       setRefreshTick((t) => t + 1);
     } catch (err) {
@@ -342,7 +338,9 @@ export function ProductTable() {
                           <p className="text-xs text-muted-foreground">
                             {p._count.variants}{" "}
                             {p._count.variants === 1 ? "variant" : "variants"}
-                            {p.seller && ` · ${p.seller.shopName}`}
+                            {kind === "admin" &&
+                              p.seller &&
+                              ` · ${p.seller.shopName}`}
                           </p>
                         </div>
                       </div>
@@ -388,7 +386,7 @@ export function ProductTable() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLinkItem
                             render={
-                              <Link href={`/admin/products/${p.id}/edit`} />
+                              <Link href={`${basePath}/${p.id}/edit`} />
                             }
                           >
                             <PencilIcon className="size-4" />

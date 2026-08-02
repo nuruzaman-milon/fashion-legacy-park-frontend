@@ -29,14 +29,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { CategoryCascade } from "@/components/admin/categories/category-cascade";
-import { getAdminBrands } from "@/lib/api/admin/brands";
-import { getAdminCategories } from "@/lib/api/admin/categories";
-import {
-  createProduct,
-  setProductStatus,
-  updateProduct,
-  type ProductPayload,
-} from "@/lib/api/admin/products";
+import { useCatalogSurface } from "@/components/admin/products/catalog-surface";
+import { setProductStatus } from "@/lib/api/admin/products";
+import type { ProductPayload } from "@/lib/api/catalog";
 import { ApiError } from "@/lib/api/client";
 import type {
   AdminCategory,
@@ -128,6 +123,8 @@ function FormSkeleton() {
  */
 export function ProductForm({ initial }: { initial?: AdminProductDetail }) {
   const router = useRouter();
+  const surface = useCatalogSurface();
+  const isSellerSurface = surface.kind === "seller";
 
   const [pickers, setPickers] = React.useState<{
     categories: AdminCategory[];
@@ -137,7 +134,7 @@ export function ProductForm({ initial }: { initial?: AdminProductDetail }) {
 
   React.useEffect(() => {
     let cancelled = false;
-    Promise.all([getAdminCategories(), getAdminBrands()])
+    Promise.all([surface.getCategories(), surface.getBrands()])
       .then(([categories, brands]) => {
         if (cancelled) return;
         setPickers({
@@ -162,7 +159,11 @@ export function ProductForm({ initial }: { initial?: AdminProductDetail }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [surface]);
+
+  // Seller-only: "Submit for review" lives beside the status badge.
+  const [submitBusy, setSubmitBusy] = React.useState(false);
+  const [submitError, setSubmitError] = React.useState<string | null>(null);
 
   // Controlled throughout — a failed save never wipes the edits.
   const [values, setValues] = React.useState(() => ({
@@ -247,7 +248,8 @@ export function ProductForm({ initial }: { initial?: AdminProductDetail }) {
           : null,
       categoryId: values.categoryId,
       brandId: values.brandId,
-      isFeatured: values.isFeatured,
+      // Featured placement is the platform's call, not the seller's.
+      isFeatured: isSellerSurface ? false : values.isFeatured,
       tags: parsed.data.tags,
       metaTitle: trimOrNull(values.metaTitle),
       metaDescription: trimOrNull(values.metaDescription),
@@ -258,17 +260,18 @@ export function ProductForm({ initial }: { initial?: AdminProductDetail }) {
 
     try {
       if (!initial) {
-        const created = await createProduct({
+        const created = await surface.api.createProduct({
           ...payload,
           name: parsed.data.name,
           categoryId: values.categoryId,
         });
-        router.push(`/admin/products/${created.id}/edit`);
+        router.push(`${surface.basePath}/${created.id}/edit`);
         return undefined;
       }
 
-      await updateProduct(initial.id, payload);
+      await surface.api.updateProduct(initial.id, payload);
       if (
+        !isSellerSurface &&
         values.status !== initial.status &&
         SETTABLE_STATUSES.includes(values.status)
       ) {
@@ -288,6 +291,36 @@ export function ProductForm({ initial }: { initial?: AdminProductDetail }) {
       return { formError: "Something went wrong. Please try again." };
     }
   }, undefined);
+
+  const submitForReview = async () => {
+    if (!initial) return;
+    setSubmitBusy(true);
+    setSubmitError(null);
+    try {
+      await surface.api.submitProduct(initial.id);
+      set("status", "PENDING_APPROVAL");
+    } catch (error) {
+      setSubmitError(
+        error instanceof ApiError
+          ? error.message
+          : "Could not submit. Please try again.",
+      );
+    } finally {
+      setSubmitBusy(false);
+    }
+  };
+
+  /** What the seller sees under the badge, per status. */
+  const SELLER_STATUS_COPY: Record<ProductStatus, string> = {
+    DRAFT:
+      "Not visible to customers yet. Add photos and variants, then submit it for review.",
+    PENDING_APPROVAL: "Waiting for review — the result shows up here.",
+    ACTIVE:
+      "Live on the storefront. Editing the details sends it back for review; price and stock changes apply instantly.",
+    REJECTED: "Fix the issues below and submit it again.",
+    INACTIVE: "Taken off the storefront by the platform — contact support.",
+    OUT_OF_STOCK: "Restock a variant to come back on sale.",
+  };
 
   if (loadError) return <FormAlert>{loadError}</FormAlert>;
   if (pickers === null) return <FormSkeleton />;
@@ -526,7 +559,41 @@ export function ProductForm({ initial }: { initial?: AdminProductDetail }) {
       </div>
 
       <div className="flex flex-col gap-6 lg:sticky lg:top-20">
-        {initial && (
+        {initial && isSellerSurface && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between gap-2">
+                Status
+                <ProductStatusBadge status={values.status} />
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                {SELLER_STATUS_COPY[values.status]}
+              </p>
+              {values.status === "REJECTED" && initial.rejectionReason && (
+                <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {initial.rejectionReason}
+                </p>
+              )}
+              {(values.status === "DRAFT" || values.status === "REJECTED") && (
+                <Button
+                  type="button"
+                  className="w-full"
+                  disabled={submitBusy}
+                  onClick={() => void submitForReview()}
+                >
+                  {submitBusy ? "Submitting…" : "Submit for review"}
+                </Button>
+              )}
+              {submitError && (
+                <p className="text-xs text-destructive">{submitError}</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {initial && !isSellerSurface && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between gap-2">
@@ -619,22 +686,24 @@ export function ProductForm({ initial }: { initial?: AdminProductDetail }) {
               </Select>
             </div>
 
-            <label
-              htmlFor="prod-featured"
-              className="flex cursor-pointer items-center justify-between gap-3"
-            >
-              <span className="text-sm">
-                <span className="block font-medium">Featured</span>
-                <span className="text-muted-foreground">
-                  Pinned in featured rails
+            {!isSellerSurface && (
+              <label
+                htmlFor="prod-featured"
+                className="flex cursor-pointer items-center justify-between gap-3"
+              >
+                <span className="text-sm">
+                  <span className="block font-medium">Featured</span>
+                  <span className="text-muted-foreground">
+                    Pinned in featured rails
+                  </span>
                 </span>
-              </span>
-              <Switch
-                id="prod-featured"
-                checked={values.isFeatured}
-                onCheckedChange={(checked) => set("isFeatured", checked)}
-              />
-            </label>
+                <Switch
+                  id="prod-featured"
+                  checked={values.isFeatured}
+                  onCheckedChange={(checked) => set("isFeatured", checked)}
+                />
+              </label>
+            )}
           </CardContent>
         </Card>
 
@@ -649,7 +718,7 @@ export function ProductForm({ initial }: { initial?: AdminProductDetail }) {
           <Button
             type="button"
             variant="outline"
-            render={<Link href="/admin/products" />}
+            render={<Link href={surface.basePath} />}
           >
             Cancel
           </Button>

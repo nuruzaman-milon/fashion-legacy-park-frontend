@@ -25,10 +25,13 @@ interface LoginState {
 /**
  * Where to go after signing in. Only same-site paths are honoured so a
  * crafted ?next=https://evil.example link cannot bounce users off-site.
+ * Without a ?next=, sellers land in their portal — the storefront's account
+ * area has nothing for them.
  */
-function safeNext(): string {
+function safeNext(role?: string): string {
   const next = new URLSearchParams(window.location.search).get("next");
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+  if (next && next.startsWith("/") && !next.startsWith("//")) return next;
+  return role === "SELLER" ? "/seller" : "/";
 }
 
 // ?reason= read via useSyncExternalStore: null on the server, the query value
@@ -38,13 +41,13 @@ const readReason = () =>
   new URLSearchParams(window.location.search).get("reason");
 
 export function LoginForm() {
-  const { status, login } = useAuth();
+  const { status, user, login } = useAuth();
   const router = useRouter();
 
   // Already signed in (bootstrap or another tab) — this page has no purpose.
   React.useEffect(() => {
-    if (status === "authenticated") router.replace(safeNext());
-  }, [status, router]);
+    if (status === "authenticated") router.replace(safeNext(user?.role));
+  }, [status, user, router]);
 
   // Flows that kill the session (change password) land here with a ?reason=
   // so the fresh login isn't a mystery.
@@ -79,8 +82,8 @@ export function LoginForm() {
     }
 
     try {
-      await login(parsed.data.email, parsed.data.password);
-      router.replace(safeNext());
+      const loggedIn = await login(parsed.data.email, parsed.data.password);
+      router.replace(safeNext(loggedIn.role));
       return undefined;
     } catch (error) {
       if (error instanceof ApiError) {

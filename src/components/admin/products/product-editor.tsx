@@ -5,13 +5,13 @@ import Link from "next/link";
 import { ExternalLinkIcon } from "lucide-react";
 
 import { PageHeader } from "@/components/admin/page-header";
+import { useCatalogSurface } from "@/components/admin/products/catalog-surface";
 import { ImagesSection } from "@/components/admin/products/images-section";
 import { ProductForm } from "@/components/admin/products/product-form";
 import { VariantsSection } from "@/components/admin/products/variants-section";
 import { FormAlert } from "@/components/auth/form-alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getAdminProduct } from "@/lib/api/admin/products";
 import { ApiError } from "@/lib/api/client";
 import type { AdminProductDetail } from "@/types/admin";
 
@@ -22,12 +22,13 @@ import type { AdminProductDetail } from "@/types/admin";
  * either section.
  */
 export function ProductEditor({ productId }: { productId: string }) {
+  const { api, basePath } = useCatalogSurface();
   const [detail, setDetail] = React.useState<AdminProductDetail | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
-    getAdminProduct(productId)
+    api.getProduct(productId)
       .then((product) => {
         if (!cancelled) setDetail(product);
       })
@@ -45,14 +46,14 @@ export function ProductEditor({ productId }: { productId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [productId]);
+  }, [productId, api]);
 
   if (error) {
     return (
       <div className="space-y-4">
         <PageHeader title="Edit product" />
         <FormAlert>{error}</FormAlert>
-        <Button variant="outline" render={<Link href="/admin/products" />}>
+        <Button variant="outline" render={<Link href={basePath} />}>
           Back to products
         </Button>
       </div>
