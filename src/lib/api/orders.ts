@@ -51,8 +51,12 @@ export interface OrderSummary {
   paymentStatus: PaymentStatus;
   paymentMethod: "COD" | "BKASH" | "SSLCOMMERZ";
   subtotal: string;
+  /** Already 0 when a FREE_SHIPPING coupon was applied. */
   shippingCharge: string;
   tax: string;
+  /** ৳ taken off the goods by a coupon; "0" when none. */
+  discount: string;
+  couponCode: string | null;
   total: string;
   createdAt: string;
   items: OrderItemInfo[];
@@ -88,6 +92,8 @@ export interface PlaceOrderPayload {
   address: string;
   paymentMethod: "COD";
   note?: string;
+  /** Validated and priced server-side; rejections come back as 4xx messages. */
+  couponCode?: string;
 }
 
 export async function placeOrder(

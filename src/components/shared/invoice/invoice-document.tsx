@@ -274,6 +274,17 @@ export const InvoiceDocument = React.forwardRef<
                   : formatPrice(Number(order.shippingCharge))}
               </span>
             </div>
+            {Number(order.discount) > 0 && (
+              <div
+                className="flex justify-between"
+                style={{ padding: "5px 12px" }}
+              >
+                <span style={{ color: SUB }}>
+                  Discount{order.couponCode ? ` (${order.couponCode})` : ""}
+                </span>
+                <span>-{formatPrice(Number(order.discount))}</span>
+              </div>
+            )}
             {Number(order.tax) > 0 && (
               <div
                 className="flex justify-between"

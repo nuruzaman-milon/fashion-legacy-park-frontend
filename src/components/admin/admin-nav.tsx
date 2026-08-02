@@ -14,6 +14,7 @@ import {
   StarIcon,
   StoreIcon,
   TagIcon,
+  TicketPercentIcon,
   UsersIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -49,6 +50,7 @@ const NAV_GROUPS: { label: string | null; items: AdminNavItem[] }[] = [
     items: [
       { href: "/admin/banners", label: "Banners", icon: ImagesIcon },
       { href: "/admin/flash-sales", label: "Flash sales", icon: SparklesIcon },
+      { href: "/admin/coupons", label: "Coupons", icon: TicketPercentIcon },
     ],
   },
   {

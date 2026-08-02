@@ -270,6 +270,16 @@ export function AdminOrderDetailView({ orderId }: { orderId: string }) {
                   : formatPrice(Number(order.shippingCharge))}
               </dd>
             </div>
+            {Number(order.discount) > 0 && (
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">
+                  Discount{order.couponCode ? ` (${order.couponCode})` : ""}
+                </dt>
+                <dd className="font-medium text-emerald-700 dark:text-emerald-400">
+                  -{formatPrice(Number(order.discount))}
+                </dd>
+              </div>
+            )}
             {Number(order.tax) > 0 && (
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">VAT</dt>

@@ -11,7 +11,9 @@ import {
   PlusIcon,
   RefreshCcwIcon,
   SmartphoneIcon,
+  TicketPercentIcon,
   TruckIcon,
+  XIcon,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +36,7 @@ import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { CartLine } from "@/lib/api/cart";
 import { ApiError } from "@/lib/api/client";
+import { previewCoupon, type CouponPreview } from "@/lib/api/coupons";
 import { placeOrder } from "@/lib/api/orders";
 import {
   createAddress,
@@ -84,7 +87,20 @@ interface PlacedOrder {
   districtLabel: string;
   paymentLabel: string;
   total: number;
+  discount: number;
+  couponCode: string | null;
   insideDhaka: boolean;
+}
+
+/** "25% off — you save ৳500" line under the applied-coupon chip. */
+function couponLabel(coupon: CouponPreview): string {
+  if (coupon.freeShipping) return "Free delivery";
+  if (coupon.discountType === "PERCENTAGE") {
+    return `${Number(coupon.discountValue)}% off — you save ${formatPrice(
+      Number(coupon.discount),
+    )}`;
+  }
+  return `${formatPrice(Number(coupon.discount))} off`;
 }
 
 function Field({
@@ -230,6 +246,12 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
   const [submitting, setSubmitting] = React.useState(false);
   const [placed, setPlaced] = React.useState<PlacedOrder | null>(null);
 
+  // Coupon — previewed server-side against the same cart placeOrder charges.
+  const [couponInput, setCouponInput] = React.useState("");
+  const [coupon, setCoupon] = React.useState<CouponPreview | null>(null);
+  const [couponBusy, setCouponBusy] = React.useState(false);
+  const [couponError, setCouponError] = React.useState<string | null>(null);
+
   // The address book: pick a saved address, or "new" for the manual form.
   const [addresses, setAddresses] = React.useState<SavedAddress[] | null>(null);
   const [selectedAddressId, setSelectedAddressId] = React.useState<
@@ -279,7 +301,30 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
           ? 0
           : DHAKA_FEE
         : OUTSIDE_FEE;
-  const total = subtotal + (deliveryFee ?? 0);
+  const discount = coupon && !coupon.freeShipping ? Number(coupon.discount) : 0;
+  const effectiveDeliveryFee = coupon?.freeShipping ? 0 : deliveryFee;
+  const total = subtotal - discount + (effectiveDeliveryFee ?? 0);
+
+  const applyCoupon = async () => {
+    const code = couponInput.trim();
+    if (!code) return;
+    setCouponBusy(true);
+    setCouponError(null);
+    try {
+      const result = await previewCoupon(code);
+      setCoupon(result);
+      setCouponInput("");
+    } catch (error) {
+      setCoupon(null);
+      setCouponError(
+        error instanceof ApiError
+          ? error.message
+          : "Could not check the coupon. Please try again.",
+      );
+    } finally {
+      setCouponBusy(false);
+    }
+  };
 
   const submitOrder = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -327,7 +372,11 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
       // The backend re-resolves prices from the server-side cart (flash
       // deals included), claims stock and empties the cart in one
       // transaction — what returns is the real invoice.
-      const order = await placeOrder({ ...shipping, paymentMethod: "COD" });
+      const order = await placeOrder({
+        ...shipping,
+        paymentMethod: "COD",
+        ...(coupon && { couponCode: coupon.code }),
+      });
 
       // The order is already placed — a failed address save must not turn
       // the success screen into an error.
@@ -352,6 +401,8 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
         paymentLabel:
           PAYMENT_METHODS.find((m) => m.id === payment)?.label ?? payment,
         total: Number(order.total),
+        discount: Number(order.discount),
+        couponCode: order.couponCode,
         insideDhaka,
       });
       window.scrollTo({ top: 0 });
@@ -399,6 +450,16 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
               <dt className="text-muted-foreground">Payment</dt>
               <dd className="font-medium">{placed.paymentLabel}</dd>
             </div>
+            {placed.discount > 0 && (
+              <div className="flex justify-between gap-6">
+                <dt className="text-muted-foreground">
+                  Discount{placed.couponCode ? ` (${placed.couponCode})` : ""}
+                </dt>
+                <dd className="font-medium text-emerald-700 dark:text-emerald-400">
+                  -{formatPrice(placed.discount)}
+                </dd>
+              </div>
+            )}
             <div className="flex justify-between gap-6">
               <dt className="text-muted-foreground">Total</dt>
               <dd className="font-semibold">{formatPrice(placed.total)}</dd>
@@ -774,6 +835,70 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
 
             <Separator className="my-5" />
 
+            {coupon ? (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-600/25 bg-emerald-600/10 px-3 py-2">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <TicketPercentIcon className="size-4 shrink-0 text-emerald-700 dark:text-emerald-400" />
+                  <div className="min-w-0">
+                    <p className="font-mono text-sm font-semibold">
+                      {coupon.code}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {couponLabel(coupon)}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Remove coupon ${coupon.code}`}
+                  onClick={() => {
+                    setCoupon(null);
+                    setCouponError(null);
+                  }}
+                >
+                  <XIcon className="size-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <div className="flex gap-2">
+                  <Input
+                    aria-label="Coupon code"
+                    placeholder="Coupon code"
+                    className="h-10 font-mono uppercase"
+                    value={couponInput}
+                    onChange={(e) => {
+                      setCouponInput(e.target.value);
+                      setCouponError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      // Enter applies the code instead of submitting the order.
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void applyCoupon();
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10"
+                    disabled={couponBusy || couponInput.trim() === ""}
+                    onClick={() => void applyCoupon()}
+                  >
+                    {couponBusy ? "Checking…" : "Apply"}
+                  </Button>
+                </div>
+                {couponError && (
+                  <p className="text-xs text-destructive">{couponError}</p>
+                )}
+              </div>
+            )}
+
+            <Separator className="my-5" />
+
             <dl className="space-y-2.5 text-sm">
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">
@@ -781,14 +906,24 @@ function CheckoutForm({ lines }: { lines: CartLine[] }) {
                 </dt>
                 <dd className="font-medium">{formatPrice(subtotal)}</dd>
               </div>
+              {discount > 0 && coupon && (
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">
+                    Discount ({coupon.code})
+                  </dt>
+                  <dd className="font-medium text-emerald-700 dark:text-emerald-400">
+                    -{formatPrice(discount)}
+                  </dd>
+                </div>
+              )}
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">Delivery</dt>
                 <dd className="font-medium">
-                  {deliveryFee === null
+                  {effectiveDeliveryFee === null
                     ? "Select district"
-                    : deliveryFee === 0
+                    : effectiveDeliveryFee === 0
                       ? "Free"
-                      : formatPrice(deliveryFee)}
+                      : formatPrice(effectiveDeliveryFee)}
                 </dd>
               </div>
             </dl>
